@@ -254,10 +254,10 @@ The study protocol was approved by the Ethics Review Committees of City Universi
 If you use this code in your research, please cite our paper (citation details will be updated upon publication):
 
 ```bibtex
-@article{Li2025EPS,
-  author  = {Chenxi Li and Siyang Gao and Shuang Qiu and Guangxin Jiang},
+@article{,
+  author  = {},
   title   = {An LLM-Based Exercise Prescription System for Digital Chronic Disease Management},
-  journal = {Nature Medicine},
+  journal = {},
   year    = {2025},
   doi     = {}
 }
