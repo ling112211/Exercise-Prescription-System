@@ -19,15 +19,13 @@ Exercise-Prescription-System/
 ├── LICENSE
 ├── requirements.txt
 ├── benchmark/
-│   ├── evaluate_benchmark.py        # Accuracy and 95% CI computation for EPS and flagship LLMs
-│   └── utils.py
+│   └── evaluate_benchmark.py        # Accuracy and 95% CI computation for EPS and flagship LLMs
 ├── expert_pilot/
 │   └── plot_expert_evaluation.py    # Grouped bar chart for Fig. 3
 ├── clinical_trial/
 │   ├── baseline_characteristics.py  # Demographic comparisons (Tables 1 and 2)
 │   ├── weight_loss_analysis.py      # Weight-loss outcomes (Fig. 4)
-│   ├── glycemic_control_analysis.py # Fasting glucose outcomes (Fig. 5)
-│   └── utils.py
+│   └── glycemic_control_analysis.py # Fasting glucose outcomes (Fig. 5)
 ├── questionnaire/
 │   └── participant_reported.py      # Radar plot for Fig. 6
 └── data/
@@ -65,26 +63,7 @@ Typical installation time on a standard desktop is under 5 minutes.
 
 ### Public exercise and weight-management corpus (D1)
 
-The public training corpus D1 (86,900 question–answer entries) was assembled by filtering publicly available medical instruction datasets with a bilingual keyword lexicon. The names and sources of all constituent datasets are listed in Extended Data Table B1 of the paper. The keyword lexicon used for filtering is provided in Supplementary Table 1. Each original dataset is available under its respective license from the following sources:
-
-| Dataset | Language | Source |
-|---|---|---|
-| MedBooks-18-CoT | English | [Kim et al., 2025](https://doi.org/10.1038/s41746-025-01573-9) |
-| MedInstruct-52K | English | [Zhang et al., 2023](https://arxiv.org/abs/2310.14558) |
-| ChatDoctor | English | [Li et al., 2023](https://doi.org/10.7759/cureus.40895) |
-| MedicationQA | English | [Abacha et al., 2019](https://doi.org/10.3233/SHTI190176) |
-| MTS-Dialog | English | [Abacha et al., 2023](https://aclanthology.org/2023.eacl-main.168) |
-| LiveQA | English | [Abacha et al., 2017](https://trec.nist.gov/pubs/trec26/papers/Overview-QA.pdf) |
-| MedMCQA (train split) | English | [Pal et al., 2022](https://proceedings.mlr.press/v174/pal22a.html) |
-| MedQA (train split) | English | [Jin et al., 2021](https://doi.org/10.3390/app11146421) |
-| CMB (train split) | Chinese | [Wang et al., 2024](https://aclanthology.org/2024.naacl-long.343) |
-| MultiMedQA | English | [Singhal et al., 2023](https://doi.org/10.1038/s41586-023-06291-2) |
-| CMExam (train split) | Chinese | [Liu et al., 2023](https://proceedings.neurips.cc/paper_files/paper/2023) |
-| Medbullets | English | [Chen et al., 2025](https://aclanthology.org/2025.naacl-long.194) |
-| Huatuo EncyclopediaQA | Chinese | [Wang et al., 2025](https://aclanthology.org/2025.findings-naacl.254) |
-| Huatuo KnowledgeGraphQA | Chinese | [Wang et al., 2025](https://aclanthology.org/2025.findings-naacl.254) |
-| Huatuo26M-Lite | Chinese | [Wang et al., 2025](https://aclanthology.org/2025.findings-naacl.254) |
-| medical-o1-reasoning-SFT | Chinese | [Chen et al., 2024](https://arxiv.org/abs/2412.18925) |
+The public training corpus D1 (86,900 question–answer entries) was assembled by filtering publicly available medical instruction datasets with a bilingual keyword lexicon. The names and sources of all constituent datasets are listed in Extended Data Table B1 of the paper. The keyword lexicon used for filtering is provided in Supplementary Table 1. Each constituent dataset should be obtained from its original source and used under its original license (see Extended Data Table B1 for the source list).
 
 ### Expert-curated exercise prescription dataset (D2)
 
@@ -92,16 +71,7 @@ The expert-curated dataset D2 (1,156 entries) contains population-level exercise
 
 ### Filtered medical benchmarks
 
-We constructed domain-specific test subsets from four established medical benchmarks by applying the bilingual keyword lexicon (Supplementary Table 1). The names and original sources of the benchmark datasets are listed in Extended Data Table D. Filtered test-subset sizes are as follows:
-
-| Benchmark | # Test items | Language |
-|---|---|---|
-| CMB | 252 | Chinese |
-| CMExam | 61 | Chinese |
-| MedMCQA | 270 | English |
-| MedQA | 138 | English |
-
-The original benchmark test sets are publicly available from their respective repositories. The keyword lexicon and matching rules for constructing the filtered subsets are provided in Supplementary Table 1.
+We constructed domain-specific test subsets from four established medical benchmarks by applying the bilingual keyword lexicon (Supplementary Table 1). The names and original sources of the benchmark datasets are listed in Extended Data Table D. 
 
 ### Clinical trial data
 
