@@ -424,10 +424,10 @@ def main() -> None:
     df_h = read_excel(Path(args.weight_human))
     df_e = read_excel(Path(args.weight_eps))
 
-    col_wl = pick_first_existing(df_h, ["减重数"]) or "减重数"
-    col_ratio = pick_first_existing(df_h, ["减重比率"]) or "减重比率"
+    col_wl = pick_first_existing(df_h, ["weight_loss_kg", "weight_loss"]) or "weight_loss_kg"
+    col_ratio = pick_first_existing(df_h, ["weight_loss_pct", "weight_loss_ratio"]) or "weight_loss_pct"
 
-    baseline_weight_candidates = ["入营体重", "入营体重kg", "入营体重（档案）", "入营体重（档案） "]
+    baseline_weight_candidates = ["baseline_weight_kg", "baseline_weight", "weight_baseline"]
     col_w0_h = pick_first_existing(df_h, baseline_weight_candidates)
     col_w0_e = pick_first_existing(df_e, baseline_weight_candidates)
     if col_w0_h is None or col_w0_e is None:

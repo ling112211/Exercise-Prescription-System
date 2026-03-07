@@ -1,5 +1,3 @@
-# clinical_trial/glycemic_control_analysis.py
-
 from __future__ import annotations
 
 import argparse
@@ -269,8 +267,8 @@ def main() -> None:
     df_h = read_excel(Path(args.gly_human))
     df_e = read_excel(Path(args.gly_eps))
 
-    baseline_fpg_candidates = ["入营空腹", "空腹", "FPG0", "Baseline fasting glucose", "Fasting glucose"]
-    end_fpg_candidates = ["结营空腹", "FPG1", "Endpoint fasting glucose"]
+    baseline_fpg_candidates = ["baseline_fpg_mmol", "baseline_fpg", "FPG0", "Baseline fasting glucose", "Fasting glucose"]
+    end_fpg_candidates = ["endpoint_fpg_mmol", "endpoint_fpg", "FPG1", "Endpoint fasting glucose"]
 
     col_fpg0_h = pick_first_existing(df_h, baseline_fpg_candidates)
     col_fpg1_h = pick_first_existing(df_h, end_fpg_candidates)

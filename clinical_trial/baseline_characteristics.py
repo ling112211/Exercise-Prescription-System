@@ -42,8 +42,8 @@ def clean_sex_binary_keepna(series: pd.Series) -> pd.Series:
     Unrecognized entries become NaN.
     """
     s = series.astype(str).str.strip().str.lower()
-    female_set = {"女", "female", "f", "0", "2"}
-    male_set = {"男", "male", "m", "1"}
+    female_set = {"f", "female", "0", "2"}
+    male_set = {"m", "male", "1"}
 
     out = pd.Series(np.nan, index=s.index, dtype=float)
     out[s.isin({x.lower() for x in female_set})] = 1.0
@@ -131,11 +131,11 @@ def ensure_parent_dir(path: Path) -> None:
 
 
 def build_table_weight_loss(df_h: pd.DataFrame, df_e: pd.DataFrame) -> pd.DataFrame:
-    col_age = pick_first_existing(df_h, ["年龄"]) or "年龄"
-    col_sex = pick_first_existing(df_h, ["性别"]) or "性别"
+    col_age = pick_first_existing(df_h, ["age"]) or "age"
+    col_sex = pick_first_existing(df_h, ["sex"]) or "sex"
     col_bmi = pick_case_insensitive(df_h, ["bmi", "BMI"]) or "bmi"
 
-    baseline_weight_candidates = ["入营体重", "入营体重kg", "入营体重（档案）", "入营体重（档案） "]
+    baseline_weight_candidates = ["baseline_weight_kg", "baseline_weight", "weight_baseline"]
     col_w0_h = pick_first_existing(df_h, baseline_weight_candidates)
     col_w0_e = pick_first_existing(df_e, baseline_weight_candidates)
     if col_w0_h is None or col_w0_e is None:
@@ -147,9 +147,9 @@ def build_table_weight_loss(df_h: pd.DataFrame, df_e: pd.DataFrame) -> pd.DataFr
 
     df_h = df_h.copy()
     df_e = df_e.copy()
+    df_h["Female01"] = clean_sex_binary_keepna(df_h[col_sex])
+    df_e["Female01"] = clean_sex_binary_keepna(df_e[col_sex])
     df_all = pd.concat([df_h.assign(__group__="Human"), df_e.assign(__group__="EPS-human")], ignore_index=True)
-
-    df_all["Female01"] = clean_sex_binary_keepna(df_all[col_sex])
 
     rows = []
 
@@ -209,11 +209,11 @@ def build_table_weight_loss(df_h: pd.DataFrame, df_e: pd.DataFrame) -> pd.DataFr
 
 
 def build_table_glycemic(df_h: pd.DataFrame, df_e: pd.DataFrame) -> pd.DataFrame:
-    col_age = pick_first_existing(df_h, ["年龄"]) or "年龄"
-    col_sex = pick_first_existing(df_h, ["性别"]) or "性别"
+    col_age = pick_first_existing(df_h, ["age"]) or "age"
+    col_sex = pick_first_existing(df_h, ["sex"]) or "sex"
     col_bmi = pick_case_insensitive(df_h, ["bmi", "BMI"]) or "bmi"
 
-    baseline_fpg_candidates = ["入营空腹", "空腹", "FPG0", "Baseline fasting glucose", "Fasting glucose"]
+    baseline_fpg_candidates = ["baseline_fpg_mmol", "baseline_fpg", "FPG0", "Baseline fasting glucose", "Fasting glucose"]
     col_fpg0_h = pick_first_existing(df_h, baseline_fpg_candidates)
     col_fpg0_e = pick_first_existing(df_e, baseline_fpg_candidates)
     if col_fpg0_h is None or col_fpg0_e is None:
@@ -225,9 +225,9 @@ def build_table_glycemic(df_h: pd.DataFrame, df_e: pd.DataFrame) -> pd.DataFrame
 
     df_h = df_h.copy()
     df_e = df_e.copy()
+    df_h["Female01"] = clean_sex_binary_keepna(df_h[col_sex])
+    df_e["Female01"] = clean_sex_binary_keepna(df_e[col_sex])
     df_all = pd.concat([df_h.assign(__group__="Human"), df_e.assign(__group__="EPS-human")], ignore_index=True)
-
-    df_all["Female01"] = clean_sex_binary_keepna(df_all[col_sex])
 
     rows = []
 

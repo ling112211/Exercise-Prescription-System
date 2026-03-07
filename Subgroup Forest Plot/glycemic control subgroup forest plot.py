@@ -44,8 +44,8 @@ def clean_sex_binary_keepna(series: pd.Series) -> pd.Series:
 
     s = series.astype(str).str.strip().str.lower()
 
-    female_set = {"女", "female", "f", "0", "2"}
-    male_set = {"男", "male", "m", "1"}
+    female_set = {"f", "female", "0", "2"}
+    male_set = {"m", "male", "1"}
 
     out = pd.Series(np.nan, index=s.index, dtype="float64")
     out[s.isin({x.lower() for x in female_set})] = 1.0
@@ -365,11 +365,11 @@ def main():
     parser.add_argument("--out_table", required=True, type=str, help="Output Excel path for subgroup table.")
     parser.add_argument("--out_png", required=True, type=str, help="Output PNG path for forest plot.")
     parser.add_argument("--out_pdf", required=True, type=str, help="Output PDF path for forest plot.")
-    parser.add_argument("--col_age", default="年龄", type=str)
-    parser.add_argument("--col_sex", default="性别", type=str)
+    parser.add_argument("--col_age", default="age", type=str)
+    parser.add_argument("--col_sex", default="sex", type=str)
     parser.add_argument("--col_bmi", default="bmi", type=str)
-    parser.add_argument("--col_fpg0", default="入营空腹", type=str)
-    parser.add_argument("--col_fpg1", default="结营空腹", type=str)
+    parser.add_argument("--col_fpg0", default="baseline_fpg_mmol", type=str)
+    parser.add_argument("--col_fpg1", default="endpoint_fpg_mmol", type=str)
     parser.add_argument("--title", default=None, type=str)
     args = parser.parse_args()
 

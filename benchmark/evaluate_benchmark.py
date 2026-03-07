@@ -1,4 +1,3 @@
-# evaluate_benchmark.py
 import argparse
 import json
 import math

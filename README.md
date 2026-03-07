@@ -1,144 +1,266 @@
 # Exercise-Prescription-System
 
-Code and data to reproduce the analyses, tables, and figures reported in:
+This repository provides the code to reproduce the analyses, tables, and figures for the paper: **An LLM-Based Exercise Prescription System for Digital Chronic Disease Management** (under review).
 
+The trial was prospectively registered at the [Chinese Clinical Trial Registry (ChiCTR2600118939)](https://www.chictr.org.cn/hvshowprojectEN.html?id=295346&v=1.0).
 
-
-<small>[Chinese Clinical Trial Registry identifier](https://www.chictr.org.cn/showproj.html?proj=310458)</small>
 ---
 
 ## Overview
 
-This repository contains the source code for reproducing the statistical analyses, benchmark evaluations, and visualizations presented in the paper. The Exercise Prescription System (EPS) is an expert-aligned large language model (LLM)–based system that produces safe, personalized, and scalable exercise feedback for digital chronic disease management. EPS was evaluated through domain-specific medical benchmarks, an expert pilot study with 25 professional health managers, and a single-blind randomized controlled trial involving 1,444 weight-loss participants and 40 glycemic-control participants.
+This repository contains the statistical analysis and visualization code for the Exercise Prescription System (EPS), an expert-aligned large language model (LLM)–based system designed to produce safe, personalized, and scalable exercise feedback for digital chronic disease management.
 
-## Repository structure
+EPS was developed and evaluated through three stages:
+
+1. **Benchmark evaluation**: Four domain-specific medical question-answering benchmarks (CMB, CMExam, MedMCQA, MedQA) assessing the medical knowledge of EPS variants and baseline models.
+2. **Expert pilot study**: An ablation-style evaluation by 25 professional health managers rating exercise-feedback outputs across seven dimensions (consensus, correctness, completeness, unbiasedness, clarity, empathy, and actionability).
+3. **Randomized controlled trials**: A single-blind RCT in two cohorts — 1,444 weight-loss participants and 40 glycemic-control participants — comparing EPS–human collaboration (EPS-generated feedback reviewed by health managers) against human coaching alone.
+
+Key results:
+
+- EPS improved medical benchmark performance by 20–30 percentage points over base models across all four benchmarks, with Qwen3-14B (EPS) achieving 86.75% on CMB, 90.66% on CMExam, 89.74% on MedMCQA, and 86.30% on MedQA.
+- In the weight-loss RCT, the EPS–human arm achieved significantly greater mean weight loss (1.40 kg vs 1.20 kg; *P* = 0.0004) and a higher proportion of participants achieving ≥2% weight loss (62.94% vs 54.27%; *P* = 0.0008).
+- In the glycemic-control RCT, the EPS–human arm yielded significantly larger reductions in fasting glucose (0.98 mmol/L vs 0.30 mmol/L; *P* < 0.05).
+
+## Repository Structure
 
 ```
 Exercise-Prescription-System/
 ├── README.md
 ├── LICENSE
 ├── requirements.txt
+├── data/
+│   ├── README_data.md                         # Data dictionary and access instructions
+│   ├── benchmark_results/
+│   │   └── benchmark_accuracy.csv             # Pre-computed benchmark accuracy (REAL DATA — reproduces Fig. 3)
+│   ├── expert_pilot/
+│   │   ├── base_model.csv                     # Expert ratings for base model (REAL DATA — reproduces Fig. 4)
+│   │   ├── eps_without_d2.csv                 # Expert ratings for base model + D1 (REAL DATA — reproduces Fig. 4)
+│   │   └── eps.csv                            # Expert ratings for full EPS (REAL DATA — reproduces Fig. 4)
+│   └── example/                               # EXAMPLE DATA ONLY — for code verification, not paper results
+│       ├── weight_loss/
+│       │   ├── human_arm.xlsx                 # Anonymised example data (does NOT reproduce paper Tables/Figs)
+│       │   └── eps_arm.xlsx
+│       ├── glycemic/
+│       │   ├── human_arm.xlsx
+│       │   └── eps_arm.xlsx
+│       └── questionnaire/
+│           ├── human_responses.xlsx
+│           └── eps_responses.xlsx
 ├── benchmark/
-│   └── evaluate_benchmark.py        # Accuracy and 95% CI computation for EPS and flagship LLMs
+│   ├── evaluate_benchmark.py                  # Benchmark model inference and 95% CI computation
+│   └── plot_benchmark.py                      # Benchmark accuracy bar chart (Fig. 3) from pre-computed CSV
 ├── expert_pilot/
-│   └── plot_expert_evaluation.py    # Grouped bar chart for Fig. 3
+│   └── plot_expert_evaluation.py              # Expert pilot evaluation grouped bar chart (Fig. 4)
 ├── clinical_trial/
-│   ├── baseline_characteristics.py  # Demographic comparisons (Tables 1 and 2)
-│   ├── weight_loss_analysis.py      # Weight-loss outcomes (Fig. 4)
-│   └── glycemic_control_analysis.py # Fasting glucose outcomes (Fig. 5)
+│   ├── baseline_characteristics.py            # Baseline demographics tables (Tables 1 and 2)
+│   ├── weight_loss_analysis.py                # Weight-loss outcomes bar chart (Fig. 5)
+│   └── glycemic_control_analysis.py           # Fasting glucose outcomes bar chart (Fig. 6)
 ├── questionnaire/
-│   └── participant_reported.py      # Radar plot for Fig. 6
-└── data/
-    └── README_data.md               # Data dictionary and access instructions
+│   └── participant_reported.py                # Participant-reported outcomes radar chart (Fig. 7)
+└── Subgroup Forest Plot/
+    ├── weight-loss subgroup forest plot.py    # Subgroup forest plot for weight-loss cohort
+    └── glycemic control subgroup forest plot.py  # Subgroup forest plot for glycemic-control cohort
 ```
 
-## System requirements
+## System Requirements
 
-### Software dependencies
+- **Python**: 3.9 or later
+- **Operating system**: Tested on Ubuntu 22.04; compatible with macOS and Windows
+- **Hardware**: Local model inference (benchmark evaluation) requires a CUDA-capable GPU with at least 16 GB VRAM for 14B-parameter models. All statistical analysis and plotting scripts run on CPU.
+- **Dependencies**: All required packages are listed in `requirements.txt`. Key packages include `numpy`, `pandas`, `scipy`, `matplotlib`, `statsmodels`, `torch`, and `transformers`.
 
-- Python 3.9 or later
-- Operating system: tested on Ubuntu 22.04 (Linux); expected to be compatible with macOS and Windows
+## Installation
 
-### Python packages
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/ling112211/Exercise-Prescription-System.git
+   cd Exercise-Prescription-System
+   ```
 
-All required packages are listed in `requirements.txt`. Key dependencies include:
+2. Install required packages:
+   ```bash
+   pip install -r requirements.txt
+   ```
+   Installation should take less than 10 minutes on a standard machine with a stable internet connection.
 
-- `numpy>=1.25.0`
-- `scipy>=1.11.0`
-- `pandas>=2.0.0`
-- `matplotlib>=3.7.0`
-- `statsmodels>=0.14.0`
+## Data Status: Real vs. Example
 
-### Installation
+> **Important**: Not all scripts in this repository can be run with real data out of the box. Please read this section carefully before running any scripts.
+
+| Script | Output | Data in this repo |
+|--------|--------|-------------------|
+| `benchmark/plot_benchmark.py` | Fig. 3 | `data/benchmark_results/benchmark_accuracy.csv` (**real**) |
+| `expert_pilot/plot_expert_evaluation.py` | Fig. 4 | `data/expert_pilot/*.csv` (**real**) |
+| `clinical_trial/baseline_characteristics.py` | Tables 1 & 2 | `data/example/` (**example only**) |
+| `clinical_trial/weight_loss_analysis.py` | Fig. 5 | `data/example/` (**example only**) |
+| `clinical_trial/glycemic_control_analysis.py` | Fig. 6 | `data/example/` (**example only**) |
+| `questionnaire/participant_reported.py` | Fig. 7 | `data/example/` (**example only**) |
+| `Subgroup Forest Plot/*.py` | Extended Data | `data/example/` (**example only**) |
+
+The example data under `data/example/` are anonymised synthetic files provided solely to verify that the code runs without errors. They do **not** reproduce the numerical results or figures reported in the paper. To obtain the real clinical trial data (weight-loss RCT, glycemic-control RCT, and questionnaire), please contact the corresponding author (see [Data Availability](#data-availability)).
+
+## How to Reproduce the Results
+
+All scripts are run from the repository root. Data files must first be obtained (see [Data Availability](#data-availability)).
+
+### Benchmark Evaluation (Fig. 3)
+
+Fig. 3 is produced in two steps: (1) running model inference to compute accuracy scores, and (2) plotting the results from the saved CSV. If you only want to reproduce the figure from the pre-computed results, skip to Step 2.
+
+**Step 1 — Run model inference** (requires GPU; skip if using pre-computed CSV)
+
+Evaluates EPS variants and baseline models across four medical benchmarks. Local models are loaded via HuggingFace; flagship model APIs require environment variables for API keys.
 
 ```bash
-git clone https://github.com/XXXX/Exercise-Prescription-System.git
-cd Exercise-Prescription-System
-pip install -r requirements.txt
+# Set API keys for proprietary models (optional, skip if only evaluating local models)
+export OPENAI_API_KEY="..."
+export DEEPSEEK_API_KEY="..."
+export GEMINI_API_KEY="..."
+export XAI_API_KEY="..."
+
+# Run benchmark evaluation (10 runs per model per benchmark by default)
+python benchmark/evaluate_benchmark.py --n_runs 10 --save_details
 ```
 
-Typical installation time on a standard desktop is under 5 minutes.
+Before running, update the model path placeholders in `benchmark/evaluate_benchmark.py` (`LOCAL_MODEL_SPECS`) to point to your local model checkpoints or HuggingFace model IDs.
 
-## Data availability
+**Step 2 — Plot the bar chart from pre-computed CSV**
 
-### Public exercise and weight-management corpus (D1)
-
-The public training corpus D1 (86,900 question–answer entries) was assembled by filtering publicly available medical instruction datasets with a bilingual keyword lexicon. The names and sources of all constituent datasets are listed in Extended Data Table B1 of the paper. The keyword lexicon used for filtering is provided in Supplementary Table 1. Each constituent dataset should be obtained from its original source and used under its original license (see Extended Data Table B1 for the source list).
-
-### Expert-curated exercise prescription dataset (D2)
-
-The expert-curated dataset D2 (1,156 entries) contains population-level exercise guidance, user-personalized exercise suggestions, expert exercise reviews, and an exercise type database. Because D2 was curated by professional health managers and contains proprietary coaching content, it is not publicly released. Requests for access to de-identified D2 data for academic research purposes can be submitted via email to G.J. (gxjiang@hit.edu.cn) with a research proposal and justification for data use. All requests will be reviewed by the Ethics Review Committee of City University of Hong Kong. Review of proposals may take up to 2 months, and approved requests will require execution of a data access agreement.
-
-### Filtered medical benchmarks
-
-We constructed domain-specific test subsets from four established medical benchmarks by applying the bilingual keyword lexicon (Supplementary Table 1). The names and original sources of the benchmark datasets are listed in Extended Data Table D. 
-
-### Clinical trial data
-
-Individual-level clinical trial data supporting the findings of this study are available within the paper and its Supplementary Information. Source data for Tables 1–2 and Figs. 1–6 are provided via this repository. Raw participant data are not publicly available due to privacy restrictions, in accordance with the ethical approval for this study. Anonymized, individual-level data underlying the trial results can be requested by qualified researchers for academic use. Requests should include a research proposal, statistical analysis plan, and justification for data use, and can be submitted via email to G.J. (gxjiang@hit.edu.cn). All requests will be reviewed by the Ethics Review Committee of City University of Hong Kong and other participating centers. Review of proposals may take up to 2 months, and approved requests will be granted access after execution of a data access agreement.
-
-## Code description
-
-### Benchmark evaluation (`benchmark/`)
-
-`evaluate_benchmark.py` reproduces the benchmark results reported in Table 3. The script computes accuracy (%) and 95% confidence intervals for both EPS models (DeepSeek-R1-8B, Qwen3-8B, DeepSeek-R1-14B, Qwen3-14B) and mainstream LLMs (ChatGPT-5, DeepSeek-R1, Gemini 2.5 Flash, Grok 4 Fast) across four filtered medical benchmarks (CMB, CMExam, MedMCQA, MedQA). Inference was repeated 10 times with different random seeds; the script reports mean accuracy across runs.
-
-### Expert pilot evaluation (`expert_pilot/`)
-
-`plot_expert_evaluation.py` generates the grouped bar chart (Fig. 3), displaying mean scores (0–3 scale) across seven evaluation dimensions (consensus, correctness, completeness, unbiasedness, clarity, empathy, and actionability) for the Base model, EPS without D2, and EPS. Error bars denote 95% confidence intervals. Twenty-five professional health managers independently rated exercise-feedback outputs; pairwise comparisons use two-sided tests with Holm step-down adjustment.
-
-### Clinical trial analyses (`clinical_trial/`)
-
-- **`baseline_characteristics.py`**: Reproduces Tables 1 and 2. Compares baseline demographics (age, sex, BMI, baseline weight or fasting glucose) between the Human arm and the EPS–human arm for both the weight-loss cohort (*n* = 1,444) and the glycemic-control cohort (*n* = 40). Continuous variables are compared using two-sided Welch's *t*-tests; categorical variables are compared using Pearson's χ² tests or Fisher's exact tests.
-
-- **`weight_loss_analysis.py`**: Reproduces Fig. 4. Computes between-arm differences in mean weight loss (kg), percent weight loss, and the proportion achieving ≥2% weight loss. *P* values are from Welch's *t*-tests (continuous outcomes) and a two-proportion *z*-test (binary outcome). The script also performs the prespecified covariate-adjusted sensitivity analysis using ordinary least squares regression.
-
-- **`glycemic_control_analysis.py`**: Reproduces Fig. 5. Computes between-arm differences in fasting glucose reduction (mmol/L) and fasting glucose reduction ratio (%). In addition to Welch's *t*-tests, the script performs the bootstrap sensitivity analysis (*B* = 10,000 resamples, percentile intervals, fixed random seed) to assess robustness.
-
-### Participant-reported outcomes (`questionnaire/`)
-
-`participant_reported.py` generates the radar plot (Fig. 6), summarizing mean scores across 14 questionnaire dimensions (items 2–15) for the Human (*n* = 344 valid responses) and EPS–human (*n* = 336 valid responses) arms. Each item is scored on a 1–7 Likert scale. Between-arm comparisons use two-sided Welch's *t*-tests with Holm step-down adjustment for multiple testing.
-
-## Reproducing the main results
-
-To reproduce the main analyses and figures reported in the paper:
+A pre-computed accuracy CSV is provided at `data/benchmark_results/benchmark_accuracy.csv`. Use `plot_benchmark.py` to generate Fig. 3 directly without re-running inference:
 
 ```bash
-# Benchmark evaluation (Table 3)
-python benchmark/evaluate_benchmark.py
-
-# Expert pilot evaluation (Fig. 3)
-python expert_pilot/plot_expert_evaluation.py
-
-# Baseline characteristics (Tables 1 and 2)
-python clinical_trial/baseline_characteristics.py
-
-# Weight-loss outcomes (Fig. 4)
-python clinical_trial/weight_loss_analysis.py
-
-# Glycemic-control outcomes (Fig. 5)
-python clinical_trial/glycemic_control_analysis.py
-
-# Participant-reported outcomes (Fig. 6)
-python questionnaire/participant_reported.py
+python benchmark/plot_benchmark.py \
+    --input  data/benchmark_results/benchmark_accuracy.csv \
+    --outdir outputs/benchmark
 ```
 
-Expected run time for the complete statistical analysis pipeline is under 10 minutes on a standard desktop computer. Benchmark inference time depends on hardware and model size.
+Both `--input` and `--outdir` have the above defaults and may be omitted when running from the repository root.
 
-## EPS model availability
+### Expert Pilot Evaluation (Fig. 4)
 
-The EPS model used in the pilot study and the randomized controlled trial was a fine-tuned Qwen3-14B model (EPS-Qwen3-14B). The model checkpoint and inference configuration were fixed before study initiation. EPS is not publicly released at this time because it incorporates proprietary expert-curated training data and is subject to ongoing deployment considerations. To support academic validation and collaborative research, the EPS model can be made available to qualified researchers upon a formal request to G.J. (gxjiang@hit.edu.cn), subject to a data-sharing agreement, ethical approvals, and a commitment to appropriate safety protocols. Base models are available from their official repositories: [Qwen3](https://github.com/QwenLM/Qwen3) (Apache-2.0 license) and [DeepSeek-R1](https://github.com/deepseek-ai/DeepSeek-R1) (MIT license).
+Generates the grouped bar chart of mean scores (0–3 scale) across seven evaluation dimensions for three model variants.
 
-## Ethics and trial registration
+```bash
+python expert_pilot/plot_expert_evaluation.py \
+    --input-dir data/expert_pilot \
+    --outdir outputs/expert_pilot
+```
 
-The study protocol covered both the pilot study and the randomized controlled trial, and was reviewed and approved by the Ethics Review Committee of City University of Hong Kong and other participating centers. The trial was prospectively registered at the Chinese Clinical Trial Registry (identifier [ChiCTR2600118939](https://www.chictr.org.cn/showproj.html?proj=XXXXX)). Written informed consent was obtained from all participants before enrollment. All procedures were conducted in accordance with the Declaration of Helsinki and the International Council for Harmonisation Good Clinical Practice (ICH-GCP) guidelines.
+Expected input files under `data/expert_pilot/`: `base_model.csv`, `eps_without_d2.csv`, `eps.csv`. Each CSV contains seven question columns (Q1–Q7) with A/B/C/D grades from 25 health managers.
 
-## Citation
+### Baseline Characteristics (Tables 1 and 2)
 
-If you use this code or data in your work, please cite:
+Generates the demographic comparison tables for both trial cohorts.
+
+> **Note**: The commands below use the example data provided in `data/example/`. The outputs will **not** match Tables 1 and 2 in the paper. Replace the paths with your real data files once access has been granted.
+
+```bash
+python clinical_trial/baseline_characteristics.py \
+    --weight_human data/example/weight_loss/human_arm.xlsx \
+    --weight_eps   data/example/weight_loss/eps_arm.xlsx \
+    --gly_human    data/example/glycemic/human_arm.xlsx \
+    --gly_eps      data/example/glycemic/eps_arm.xlsx \
+    --out_dir      outputs/clinical_trial
+```
+
+### Weight-Loss Outcomes (Fig. 5)
+
+Computes Welch *t*-test statistics and Clopper–Pearson confidence intervals, then generates the three-panel bar chart.
+
+> **Note**: The commands below use the example data provided in `data/example/`. The outputs will **not** match Fig. 5 in the paper. Replace the paths with your real data files once access has been granted.
+
+```bash
+python clinical_trial/weight_loss_analysis.py \
+    --weight_human data/example/weight_loss/human_arm.xlsx \
+    --weight_eps   data/example/weight_loss/eps_arm.xlsx \
+    --out_dir      outputs/clinical_trial
+```
+
+### Glycemic-Control Outcomes (Fig. 6)
+
+Computes fasting glucose reduction statistics and generates the two-panel bar chart.
+
+> **Note**: The commands below use the example data provided in `data/example/`. The outputs will **not** match Fig. 6 in the paper. Replace the paths with your real data files once access has been granted.
+
+```bash
+python clinical_trial/glycemic_control_analysis.py \
+    --gly_human data/example/glycemic/human_arm.xlsx \
+    --gly_eps   data/example/glycemic/eps_arm.xlsx \
+    --out_dir   outputs/clinical_trial
+```
+
+### Participant-Reported Outcomes (Fig. 7)
+
+Applies quality-control filters (Q1 screening, completion-time filter, straight-lining detection) and generates the radar chart with 95% confidence intervals.
+
+> **Note**: The commands below use the example data provided in `data/example/`. The outputs will **not** match Fig. 7 in the paper. Replace the paths with your real data files once access has been granted.
+
+```bash
+python questionnaire/participant_reported.py \
+    --human-xlsx data/example/questionnaire/human_responses.xlsx \
+    --eps-xlsx   data/example/questionnaire/eps_responses.xlsx \
+    --outdir     outputs/questionnaire
+```
+
+### Subgroup Forest Plots (Extended Data)
+
+> **Note**: The commands below use the example data provided in `data/example/`. The outputs will **not** match the extended data figures in the paper. Replace the paths with your real data files once access has been granted.
+
+```bash
+# Weight-loss subgroup analysis
+python "Subgroup Forest Plot/weight-loss subgroup forest plot.py" \
+    --eps   data/example/weight_loss/eps_arm.xlsx \
+    --human data/example/weight_loss/human_arm.xlsx \
+    --out-prefix outputs/subgroup/weightloss_subgroup
+
+# Glycemic-control subgroup analysis
+python "Subgroup Forest Plot/glycemic control subgroup forest plot.py" \
+    --eps      data/example/glycemic/eps_arm.xlsx \
+    --human    data/example/glycemic/human_arm.xlsx \
+    --col_bmi  BMI \
+    --out_table outputs/subgroup/glycemic_subgroup.xlsx \
+    --out_png   outputs/subgroup/glycemic_subgroup.png \
+    --out_pdf   outputs/subgroup/glycemic_subgroup.pdf
+```
+
+## Data Availability
+
+This repository includes two categories of data:
+
+**Fully available (real data, reproduces paper results):**
+- `data/benchmark_results/benchmark_accuracy.csv` — pre-computed benchmark accuracy scores used to generate Fig. 3.
+- `data/expert_pilot/` — expert ratings from the 25-person pilot study used to generate Fig. 4.
+
+**Example data only (does not reproduce paper results):**
+- `data/example/` — anonymised synthetic datasets provided solely to verify that the analysis and plotting scripts run without errors. These files have the same format as the real data but contain different values. Outputs produced with these files will **not** match the tables and figures reported in the paper.
+
+The real clinical trial data (weight-loss RCT: 1,444 participants; glycemic-control RCT: 40 participants; participant questionnaire) are available under controlled access due to patient privacy regulations. Researchers who wish to access the de-identified participant data for academic purposes may contact the corresponding author. Please see `data/README_data.md` for a full description of each dataset and the required file format.
+
+## Model Availability
+
+EPS models are fine-tuned versions of open-source base models (DeepSeek-R1-8B, Qwen3-8B, DeepSeek-R1-14B, Qwen3-14B) using a two-stage alignment framework: supervised fine-tuning on domain-specific data (D1) followed by Kahneman–Tversky Optimization on expert-preference data (D2). Model checkpoints are not publicly released due to the use of proprietary training data. Qualified researchers may request access by contacting the corresponding author.
+
+Base models are available from their official repositories:
+- **Qwen3**: [github.com/QwenLM/Qwen3](https://github.com/QwenLM/Qwen3) (Apache-2.0 License)
+- **DeepSeek-R1**: [github.com/deepseek-ai/DeepSeek-R1](https://github.com/deepseek-ai/DeepSeek-R1) (MIT License)
+
+## Ethics and Trial Registration
+
+The study protocol was approved by the Ethics Review Committees of City University of Hong Kong, Harbin Institute of Technology, and Ping An Health and Technology Co., Ltd. The trial was registered at the [Chinese Clinical Trial Registry (ChiCTR2600118939)](https://www.chictr.org.cn/hvshowprojectEN.html?id=295346&v=1.0). All participants provided written informed consent prior to enrollment.
+
+## How to Cite
+
+If you use this code in your research, please cite our paper (citation details will be updated upon publication):
 
 ```bibtex
-
+@article{Li2025EPS,
+  author  = {Chenxi Li and Siyang Gao and Shuang Qiu and Guangxin Jiang},
+  title   = {An LLM-Based Exercise Prescription System for Digital Chronic Disease Management},
+  journal = {Nature Medicine},
+  year    = {2025},
+  doi     = {}
+}
 ```
 
 ## License
@@ -147,7 +269,8 @@ This project is licensed under the [MIT License](LICENSE).
 
 ## Contact
 
-For questions regarding the code, data access, or the EPS model, please contact:
+For questions regarding the code, data access, or model access, please contact:
 
 - **Guangxin Jiang** (corresponding author): gxjiang@hit.edu.cn
 - **Chenxi Li**: ling112358@gmail.com
+- **Siyang Gao**: siyangao@cityu.edu.hk

@@ -30,8 +30,8 @@ def configure_matplotlib() -> None:
 # =========================
 # Column detection
 # =========================
-Q1_PATTERN = re.compile(r"^\s*1\s*[\.．、。:：\)]")
-Q2_15_PATTERN = re.compile(r"^\s*(?:[2-9]|1[0-5])\s*[\.．、。:：\)]")
+Q1_PATTERN = re.compile(r"^\s*(?:Q1\s*$|1\s*\.)")
+Q2_15_PATTERN = re.compile(r"^\s*(?:Q(?:[2-9]|1[0-5])\s*$|(?:[2-9]|1[0-5])\s*\.)")
 
 
 def normalize_colname(x: object) -> str:
@@ -49,7 +49,11 @@ def pick_question_cols(df: pd.DataFrame, pattern: re.Pattern) -> List[str]:
 
 def qnum(colname: object) -> int:
     s = normalize_colname(colname)
-    m = re.match(r"^\s*(\d+)\s*[\.．、。:：\)]", s)
+    # Match "Q{n}" format first, then "{n}." legacy format
+    m = re.match(r"^\s*Q(\d+)\s*$", s, re.IGNORECASE)
+    if m:
+        return int(m.group(1))
+    m = re.match(r"^\s*(\d+)\s*\.", s)
     return int(m.group(1)) if m else 10**9
 
 
@@ -71,14 +75,15 @@ def parse_yes_no(x: object) -> float:
     if pd.isna(x):
         return np.nan
     s = str(x).strip()
-    m = re.match(r"^([AB])\s*[\.\．、。:：\)\）]?", s)
+    m = re.match(r"^([AB])\s*[\.:\)\s]?", s)
     if m:
         return 1.0 if m.group(1) == "A" else 0.0
 
-    # Heuristic for common Chinese yes/no tokens (kept as data parsing rules).
-    if ("是" in s) and ("否" not in s):
+    # Heuristic for common English yes/no tokens.
+    sl = s.lower()
+    if "yes" in sl and "no" not in sl:
         return 1.0
-    if ("否" in s) and ("是" not in s):
+    if "no" in sl and "yes" not in sl:
         return 0.0
     return np.nan
 
@@ -189,7 +194,7 @@ def holm_adjust(pvals: np.ndarray) -> np.ndarray:
 # QC helpers
 # =========================
 def try_find_id_col(df: pd.DataFrame) -> Optional[str]:
-    candidates = ["编号", "ID", "Id", "id", "participant_id", "user_id"]
+    candidates = ["id", "ID", "Id", "participant_id", "user_id"]
     for c in df.columns:
         if normalize_colname(c) in candidates:
             return c
@@ -201,12 +206,7 @@ def try_find_time_col(df: pd.DataFrame) -> Optional[str]:
     Tries to locate a completion-time column by common name patterns.
     """
     patterns = [
-        r"(?i)\b(duration|time\s*spent|elapsed)\b",
-        r"用时",
-        r"耗时",
-        r"完成时间",
-        r"答题时间",
-        r"填写时间",
+        r"(?i)\b(duration|time\s*spent|elapsed|completion\s*time)\b",
     ]
     for c in df.columns:
         name = normalize_colname(c)
@@ -224,9 +224,9 @@ def infer_time_seconds(values: pd.Series, colname: str) -> pd.Series:
     s = pd.to_numeric(values, errors="coerce")
     name = normalize_colname(colname).lower()
 
-    if ("min" in name) or ("minute" in name) or ("分钟" in name):
+    if ("min" in name) or ("minute" in name):
         return s * 60.0
-    if ("sec" in name) or ("second" in name) or ("秒" in name):
+    if ("sec" in name) or ("second" in name):
         return s
 
     # Heuristic by magnitude: large medians are likely seconds.
@@ -244,7 +244,7 @@ def drop_straightliners(df: pd.DataFrame, q_cols: List[str], min_answered: int =
     Drops rows that select the same option for all answered items (Q2..Q15).
     Only considers rows with at least min_answered non-missing parsed responses.
     """
-    parsed = df[q_cols].applymap(parse_likert_1_7)
+    parsed = df[q_cols].map(parse_likert_1_7)
     answered = parsed.notna().sum(axis=1)
     same = parsed.nunique(axis=1, dropna=True)
     mask_keep = ~((answered >= min_answered) & (same <= 1))

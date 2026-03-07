@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 import argparse
 import math
 from pathlib import Path
@@ -22,16 +19,15 @@ plt.rcParams["ps.fonttype"] = 42
 # =========================
 # Column config (dataset-specific)
 # =========================
-COL_OUTCOME = "减重数"  # primary outcome (kg): weight change
-COL_AGE = "年龄"
-COL_SEX = "性别"
+COL_OUTCOME = "weight_loss_kg"   # primary outcome (kg): weight change
+COL_AGE = "age"
+COL_SEX = "sex"
 COL_BMI = "bmi"
 
 BASELINE_WEIGHT_CANDIDATES = [
-    "入营体重",
-    "入营体重kg",
-    "入营体重（档案）",
-    "入营体重（档案） ",
+    "baseline_weight_kg",
+    "baseline_weight",
+    "weight_baseline",
 ]
 
 
@@ -67,8 +63,8 @@ def clean_sex_binary(series: pd.Series) -> pd.Series:
     # Normalize
     raw = s.astype(str).str.strip().str.lower()
 
-    female_tokens = {"女", "female", "f"}
-    male_tokens = {"男", "male", "m"}
+    female_tokens = {"female", "f"}
+    male_tokens = {"male", "m"}
 
     # Numeric codes seen in some exports:
     # Keep the user's original convention: 0/2 as female, 1 as male.
@@ -179,7 +175,7 @@ def interaction_pvalue(df: pd.DataFrame, subgroup_col: str) -> float:
 # =========================
 def load_arm(path: Path) -> pd.DataFrame:
     df = pd.read_excel(path)
-    df.columns = df.columns.astype(str).str.strip()
+    df.columns = df.columns.astype(str).str.strip().str.lower()
     return df
 
 
