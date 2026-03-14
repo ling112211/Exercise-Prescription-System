@@ -32,11 +32,11 @@ Exercise-Prescription-System/
 ├── data/
 │   ├── README_data.md                         # Data dictionary and access instructions
 │   ├── benchmark_results/
-│   │   └── benchmark_accuracy.csv             # Pre-computed benchmark accuracy (REAL DATA — reproduces Fig. 3)
+│   │   └── benchmark_accuracy.csv             # Pre-computed benchmark accuracy (REAL DATA — reproduces Fig. 4)
 │   ├── expert_pilot/
-│   │   ├── base_model.csv                     # Expert ratings for base model (REAL DATA — reproduces Fig. 4)
-│   │   ├── eps_without_d2.csv                 # Expert ratings for base model + D1 (REAL DATA — reproduces Fig. 4)
-│   │   └── eps.csv                            # Expert ratings for full EPS (REAL DATA — reproduces Fig. 4)
+│   │   ├── base_model.csv                     # Expert ratings for base model (REAL DATA — reproduces Fig. 5)
+│   │   ├── eps_without_d2.csv                 # Expert ratings for base model + D1 (REAL DATA — reproduces Fig. 5)
+│   │   └── eps.csv                            # Expert ratings for full EPS (REAL DATA — reproduces Fig. 5)
 │   └── example/                               # EXAMPLE DATA ONLY — for code verification, not paper results
 │       ├── weight_loss/
 │       │   ├── human_arm.xlsx                 # Anonymised example data (does NOT reproduce paper Tables/Figs)
@@ -72,15 +72,15 @@ Exercise-Prescription-System/
 │   ├── checked_merged_CMExam_test.json        # CMExam benchmark question set
 │   ├── checked_merged_test_CMB.json           # CMB benchmark question set
 │   ├── evaluate_benchmark.py                  # Benchmark model inference and 95% CI computation
-│   └── plot_benchmark.py                      # Benchmark accuracy bar chart (Fig. 3) from pre-computed CSV
+│   └── plot_benchmark.py                      # Benchmark accuracy bar chart (Fig. 4) from pre-computed CSV
 ├── expert_pilot/
-│   └── plot_expert_evaluation.py              # Expert pilot evaluation grouped bar chart (Fig. 4)
+│   └── plot_expert_evaluation.py              # Expert pilot evaluation grouped bar chart (Fig. 5)
 ├── clinical_trial/
 │   ├── baseline_characteristics.py            # Baseline demographics tables (Tables 1 and 2)
-│   ├── weight_loss_analysis.py                # Weight-loss outcomes bar chart (Fig. 5)
-│   └── glycemic_control_analysis.py           # Fasting glucose outcomes bar chart (Fig. 6)
+│   ├── weight_loss_analysis.py                # Weight-loss outcomes bar chart (Fig. 6)
+│   └── glycemic_control_analysis.py           # Fasting glucose outcomes bar chart (Fig. 7)
 ├── questionnaire/
-│   └── participant_reported.py                # Participant-reported outcomes radar chart (Fig. 7)
+│   └── participant_reported.py                # Participant-reported outcomes radar chart (Fig. 8)
 └── Subgroup Forest Plot/
     ├── weight-loss subgroup forest plot.py    # Subgroup forest plot for weight-loss cohort
     └── glycemic control subgroup forest plot.py  # Subgroup forest plot for glycemic-control cohort
@@ -113,12 +113,12 @@ Exercise-Prescription-System/
 
 | Script | Output | Data in this repo |
 |--------|--------|-------------------|
-| `benchmark/plot_benchmark.py` | Fig. 3 | `data/benchmark_results/benchmark_accuracy.csv` (**real**) |
-| `expert_pilot/plot_expert_evaluation.py` | Fig. 4 | `data/expert_pilot/*.csv` (**real**) |
+| `benchmark/plot_benchmark.py` | Fig. 4 | `data/benchmark_results/benchmark_accuracy.csv` (**real**) |
+| `expert_pilot/plot_expert_evaluation.py` | Fig. 5 | `data/expert_pilot/*.csv` (**real**) |
 | `clinical_trial/baseline_characteristics.py` | Tables 1 & 2 | `data/example/` (**example only**) |
-| `clinical_trial/weight_loss_analysis.py` | Fig. 5 | `data/example/` (**example only**) |
-| `clinical_trial/glycemic_control_analysis.py` | Fig. 6 | `data/example/` (**example only**) |
-| `questionnaire/participant_reported.py` | Fig. 7 | `data/example/` (**example only**) |
+| `clinical_trial/weight_loss_analysis.py` | Fig. 6 | `data/example/` (**example only**) |
+| `clinical_trial/glycemic_control_analysis.py` | Fig. 7 | `data/example/` (**example only**) |
+| `questionnaire/participant_reported.py` | Fig. 8 | `data/example/` (**example only**) |
 | `Subgroup Forest Plot/*.py` | Extended Data | `data/example/` (**example only**) |
 
 The example data under `data/example/` are anonymised synthetic files provided solely to verify that the code runs without errors. They do **not** reproduce the numerical results or figures reported in the paper. To obtain the real clinical trial data (weight-loss RCT, glycemic-control RCT, and questionnaire), please contact the corresponding author (see [Data Availability](#data-availability)).
@@ -127,9 +127,9 @@ The example data under `data/example/` are anonymised synthetic files provided s
 
 All scripts are run from the repository root. Data files must first be obtained (see [Data Availability](#data-availability)).
 
-### Benchmark Evaluation (Fig. 3)
+### Benchmark Evaluation (Fig. 4)
 
-Fig. 3 is produced in two steps: (1) running model inference to compute accuracy scores, and (2) plotting the results from the saved CSV. If you only want to reproduce the figure from the pre-computed results, skip to Step 2.
+Fig. 4 is produced in two steps: (1) running model inference to compute accuracy scores and export the plotting CSV, and (2) plotting the results from the saved CSV. If you only want to reproduce the figure from the pre-computed results, skip to Step 2.
 
 **Step 1 — Run model inference** (requires GPU; skip if using pre-computed CSV)
 
@@ -150,7 +150,7 @@ Before running, update the model path placeholders in `benchmark/evaluate_benchm
 
 **Step 2 — Plot the bar chart from pre-computed CSV**
 
-A pre-computed accuracy CSV is provided at `data/benchmark_results/benchmark_accuracy.csv`. Use `plot_benchmark.py` to generate Fig. 3 directly without re-running inference:
+A pre-computed accuracy CSV is provided at `data/benchmark_results/benchmark_accuracy.csv`. Use `plot_benchmark.py` to generate Fig. 4 directly without re-running inference:
 
 ```bash
 python benchmark/plot_benchmark.py \
@@ -160,7 +160,7 @@ python benchmark/plot_benchmark.py \
 
 Both `--input` and `--outdir` have the above defaults and may be omitted when running from the repository root.
 
-### Expert Pilot Evaluation (Fig. 4)
+### Expert Pilot Evaluation (Fig. 5)
 
 Generates the grouped bar chart of mean scores (0–3 scale) across seven evaluation dimensions for three model variants.
 
@@ -187,11 +187,11 @@ python clinical_trial/baseline_characteristics.py \
     --out_dir      outputs/clinical_trial
 ```
 
-### Weight-Loss Outcomes (Fig. 5)
+### Weight-Loss Outcomes (Fig. 6)
 
 Computes Welch *t*-test statistics and Clopper–Pearson confidence intervals, then generates the three-panel bar chart.
 
-> **Note**: The commands below use the example data provided in `data/example/`. The outputs will **not** match Fig. 5 in the paper. Replace the paths with your real data files once access has been granted.
+> **Note**: The commands below use the example data provided in `data/example/`. The outputs will **not** match Fig. 6 in the paper. Replace the paths with your real data files once access has been granted.
 
 ```bash
 python clinical_trial/weight_loss_analysis.py \
@@ -200,11 +200,11 @@ python clinical_trial/weight_loss_analysis.py \
     --out_dir      outputs/clinical_trial
 ```
 
-### Glycemic-Control Outcomes (Fig. 6)
+### Glycemic-Control Outcomes (Fig. 7)
 
 Computes fasting glucose reduction statistics and generates the two-panel bar chart.
 
-> **Note**: The commands below use the example data provided in `data/example/`. The outputs will **not** match Fig. 6 in the paper. Replace the paths with your real data files once access has been granted.
+> **Note**: The commands below use the example data provided in `data/example/`. The outputs will **not** match Fig. 7 in the paper. Replace the paths with your real data files once access has been granted.
 
 ```bash
 python clinical_trial/glycemic_control_analysis.py \
@@ -213,11 +213,11 @@ python clinical_trial/glycemic_control_analysis.py \
     --out_dir   outputs/clinical_trial
 ```
 
-### Participant-Reported Outcomes (Fig. 7)
+### Participant-Reported Outcomes (Fig. 8)
 
 Applies quality-control filters (Q1 screening, completion-time filter, straight-lining detection) and generates the radar chart with 95% confidence intervals.
 
-> **Note**: The commands below use the example data provided in `data/example/`. The outputs will **not** match Fig. 7 in the paper. Replace the paths with your real data files once access has been granted.
+> **Note**: The commands below use the example data provided in `data/example/`. The outputs will **not** match Fig. 8 in the paper. Replace the paths with your real data files once access has been granted.
 
 ```bash
 python questionnaire/participant_reported.py \
@@ -257,8 +257,8 @@ This repository includes two categories of data:
 - `benchmark/checked_converted_medqa_test.json` — MedQA (USMLE) benchmark question set (138 questions) used for model evaluation.
 - `benchmark/checked_merged_CMExam_test.json` — CMExam benchmark question set used for model evaluation.
 - `benchmark/checked_merged_test_CMB.json` — CMB benchmark question set used for model evaluation.
-- `data/benchmark_results/benchmark_accuracy.csv` — pre-computed benchmark accuracy scores used to generate Fig. 3.
-- `data/expert_pilot/` — expert ratings from the 25-person pilot study used to generate Fig. 4.
+- `data/benchmark_results/benchmark_accuracy.csv` — pre-computed benchmark accuracy scores used to generate Fig. 4.
+- `data/expert_pilot/` — expert ratings from the 25-person pilot study used to generate Fig. 5.
 
 **Example data only (does not reproduce paper results):**
 - `data/example/` — anonymised synthetic datasets provided solely to verify that the analysis and plotting scripts run without errors. These files have the same format as the real data but contain different values. Outputs produced with these files will **not** match the tables and figures reported in the paper.

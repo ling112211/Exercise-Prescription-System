@@ -1,4 +1,5 @@
 import argparse
+import csv
 import json
 import math
 import os
@@ -29,19 +30,19 @@ except Exception:  # pragma: no cover
 
 BENCHMARKS: Dict[str, Dict[str, Any]] = {
     "CMB": {
-        "data_path": "benchmark/benchmark/checked_merged_test_CMB.json",
+        "data_path": "benchmark/checked_merged_test_CMB.json",
         "language": "zh",
     },
     "CMExam": {
-        "data_path": "benchmark/benchmark/checked_merged_test_CMExam.json",
+        "data_path": "benchmark/checked_merged_CMExam_test.json",
         "language": "zh",
     },
     "MedMCQA": {
-        "data_path": "benchmark/benchmark/checked_merged_test_MedMCQA.json",
+        "data_path": "benchmark/checked_converted_medmcqa_test.json",
         "language": "en",
     },
     "MedQA": {
-        "data_path": "benchmark/benchmark/checked_merged_test_MedQA.json",
+        "data_path": "benchmark/checked_converted_medqa_test.json",
         "language": "en",
     },
 }
@@ -166,6 +167,26 @@ PROMPT_FMT_EN = (
 )
 
 RESULTS_BASE_DIR = "data/results"
+BENCHMARK_CSV_PATH = "data/benchmark_results/benchmark_accuracy.csv"
+GROUP_DISPLAY_NAMES: Dict[str, str] = {
+    "Base": "Base model",
+    "EPS": "EPS",
+    "Flagship": "Mainstream LLMs",
+}
+MODEL_DISPLAY_NAMES: Dict[str, str] = {
+    "DeepSeek-R1-8B": "DeepSeek-R1-8B",
+    "Qwen3-8B": "Qwen3-8B",
+    "DeepSeek-R1-14B": "DeepSeek-R1-14B",
+    "Qwen3-14B": "Qwen3-14B",
+    "EPS-DeepSeek-R1-8B": "DeepSeek-R1-8B",
+    "EPS-Qwen3-8B": "Qwen3-8B",
+    "EPS-DeepSeek-R1-14B": "DeepSeek-R1-14B",
+    "EPS-Qwen3-14B": "Qwen3-14B",
+    "ChatGPT-5": "ChatGPT-5",
+    "DeepSeek-R1": "DeepSeek-R1",
+    "Gemini-2.5-Flash": "Gemini 2.5 Flash",
+    "Grok-4-Fast": "Grok 4 Fast",
+}
 
 
 # ---------------- Utilities ----------------
@@ -252,6 +273,74 @@ def write_json(path: Path, payload: Dict[str, Any]) -> None:
     ensure_dir(path.parent)
     with path.open("w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
+
+
+def export_benchmark_csv() -> Path:
+    root = project_root()
+    out_path = root / BENCHMARK_CSV_PATH
+    ensure_dir(out_path.parent)
+
+    rows: List[Dict[str, Union[str, int, float]]] = []
+    for category, models in MODEL_GROUPS.items():
+        display_group = GROUP_DISPLAY_NAMES.get(category, category)
+        for model_name in models:
+            display_model = MODEL_DISPLAY_NAMES.get(model_name, model_name)
+            for benchmark in BENCHMARKS:
+                summary_path = result_dir_for(category, model_name, benchmark) / "result.json"
+                if not summary_path.exists():
+                    continue
+                with summary_path.open("r", encoding="utf-8") as f:
+                    summary = json.load(f)
+
+                runs = summary.get("runs", [])
+                n_questions = 0
+                if runs:
+                    n_questions = int(runs[0].get("total", 0))
+
+                ci95 = summary.get("ci95", [float("nan"), float("nan")])
+                rows.append(
+                    {
+                        "group": display_group,
+                        "model": display_model,
+                        "benchmark": benchmark,
+                        "mean_accuracy_pct": round(float(summary.get("average_accuracy", 0.0)) * 100.0, 2),
+                        "ci_low_pct": round(float(ci95[0]) * 100.0, 2),
+                        "ci_high_pct": round(float(ci95[1]) * 100.0, 2),
+                        "n_questions": n_questions,
+                    }
+                )
+
+    group_order = {name: idx for idx, name in enumerate(["Base model", "EPS", "Mainstream LLMs"])}
+    model_order = {
+        "Base model": {name: idx for idx, name in enumerate(["DeepSeek-R1-8B", "Qwen3-8B", "DeepSeek-R1-14B", "Qwen3-14B"])},
+        "EPS": {name: idx for idx, name in enumerate(["DeepSeek-R1-8B", "Qwen3-8B", "DeepSeek-R1-14B", "Qwen3-14B"])},
+        "Mainstream LLMs": {name: idx for idx, name in enumerate(["ChatGPT-5", "DeepSeek-R1", "Gemini 2.5 Flash", "Grok 4 Fast"])},
+    }
+    benchmark_order = {name: idx for idx, name in enumerate(BENCHMARKS)}
+    rows.sort(
+        key=lambda row: (
+            group_order.get(str(row["group"]), 999),
+            model_order.get(str(row["group"]), {}).get(str(row["model"]), 999),
+            benchmark_order.get(str(row["benchmark"]), 999),
+        )
+    )
+
+    with out_path.open("w", encoding="utf-8-sig", newline="") as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=[
+                "group",
+                "model",
+                "benchmark",
+                "mean_accuracy_pct",
+                "ci_low_pct",
+                "ci_high_pct",
+                "n_questions",
+            ],
+        )
+        writer.writeheader()
+        writer.writerows(rows)
+    return out_path
 
 
 # ---------------- Model runners ----------------
@@ -581,6 +670,9 @@ def run_all(
                     )
             finally:
                 runner.close()
+
+    csv_path = export_benchmark_csv()
+    print(f"Saved benchmark CSV: {csv_path}")
 
 
 # ---------------- CLI ----------------

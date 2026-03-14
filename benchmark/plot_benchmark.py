@@ -1,5 +1,5 @@
 """
-Benchmark accuracy bar chart (Fig. 3).
+Benchmark accuracy bar chart (Fig. 4).
 
 Reads a pre-computed CSV produced by evaluate_benchmark.py and draws a
 four-panel grouped bar chart (one panel per benchmark dataset) showing
@@ -233,7 +233,7 @@ def plot_benchmark(df: pd.DataFrame, outdir: Path) -> None:
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="Plot benchmark accuracy bar chart (Fig. 3) from a pre-computed CSV."
+        description="Plot benchmark accuracy bar chart (Fig. 4) from a pre-computed CSV."
     )
     p.add_argument(
         "--input",
