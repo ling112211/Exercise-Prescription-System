@@ -245,11 +245,15 @@ def add_subgroup_columns(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, floa
 
     out["age_cat"] = pd.cut(
         out["age"],
-        bins=[-np.inf, 45, 60, np.inf],
+        bins=[-np.inf, 45, np.inf],
         right=False,
-        labels=["<45", "45–59", "≥60"],
+        labels=["<45", "≥45"],
     )
-    out["age_cat"] = pd.Categorical(out["age_cat"], categories=["<45", "45–59", "≥60"], ordered=True)
+    out["age_cat"] = pd.Categorical(
+        out["age_cat"],
+        categories=["<45", "≥45"],
+        ordered=True,
+    )
 
     # Baseline weight categories using pooled sample terciles
     w0 = out["w0"].astype(float)
@@ -261,7 +265,6 @@ def add_subgroup_columns(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, floa
         c1_disp = int(round(c1))
         c2_disp = int(round(c2))
 
-        # Guard against equal cutpoints after rounding
         if c2_disp <= c1_disp:
             c2_disp = c1_disp + 1
 
@@ -285,6 +288,7 @@ def add_subgroup_columns(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, floa
         out["w0_cat"] = pd.Categorical(out["w0_cat"], categories=labels, ordered=True)
     else:
         out["w0_cat"] = pd.Categorical([np.nan] * out.shape[0])
+
     return out, meta
 
 
