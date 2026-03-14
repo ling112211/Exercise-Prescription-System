@@ -156,11 +156,15 @@ def add_subgroup_columns(df: pd.DataFrame) -> pd.DataFrame:
 
     out["bmi_cat"] = pd.cut(
         out["bmi"],
-        bins=[-np.inf, 24, 28, np.inf],
+        bins=[-np.inf, 24, np.inf],
         right=False,
-        labels=["<24", "24–27.9", "≥28"],
+        labels=["<24", "≥24"],
     )
-    out["bmi_cat"] = pd.Categorical(out["bmi_cat"], categories=["<24", "24–27.9", "≥28"], ordered=True)
+    out["bmi_cat"] = pd.Categorical(
+        out["bmi_cat"],
+        categories=["<24", "≥24"],
+        ordered=True,
+    )
 
     fpg = out["fpg0"].astype(float)
     labels_fpg = ["<5.9 mmol/L", "5.9–6.6 mmol/L", "≥6.6 mmol/L"]
