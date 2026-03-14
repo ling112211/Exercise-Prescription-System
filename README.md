@@ -48,6 +48,10 @@ Exercise-Prescription-System/
 │           ├── human_responses.xlsx
 │           └── eps_responses.xlsx
 ├── benchmark/
+│   ├── checked_converted_medmcqa_test.json    # MedMCQA benchmark question set (270 questions)
+│   ├── checked_converted_medqa_test.json      # MedQA (USMLE) benchmark question set (138 questions)
+│   ├── checked_merged_CMExam_test.json        # CMExam benchmark question set
+│   ├── checked_merged_test_CMB.json           # CMB benchmark question set
 │   ├── evaluate_benchmark.py                  # Benchmark model inference and 95% CI computation
 │   └── plot_benchmark.py                      # Benchmark accuracy bar chart (Fig. 3) from pre-computed CSV
 ├── expert_pilot/
@@ -229,6 +233,10 @@ python "Subgroup Forest Plot/glycemic control subgroup forest plot.py" \
 This repository includes two categories of data:
 
 **Fully available (real data, reproduces paper results):**
+- `benchmark/checked_converted_medmcqa_test.json` — MedMCQA benchmark question set (270 questions) used for model evaluation.
+- `benchmark/checked_converted_medqa_test.json` — MedQA (USMLE) benchmark question set (138 questions) used for model evaluation.
+- `benchmark/checked_merged_CMExam_test.json` — CMExam benchmark question set used for model evaluation.
+- `benchmark/checked_merged_test_CMB.json` — CMB benchmark question set used for model evaluation.
 - `data/benchmark_results/benchmark_accuracy.csv` — pre-computed benchmark accuracy scores used to generate Fig. 3.
 - `data/expert_pilot/` — expert ratings from the 25-person pilot study used to generate Fig. 4.
 
