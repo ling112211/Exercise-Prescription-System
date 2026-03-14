@@ -47,6 +47,25 @@ Exercise-Prescription-System/
 │       └── questionnaire/
 │           ├── human_responses.xlsx
 │           └── eps_responses.xlsx
+├── D1/                                        # Public exercise and weight-management corpus (86,900 entries)
+│   ├── medbooks-18-cot-filtered.json          # Medical textbook CoT Q&A (filtered)
+│   ├── medinstruct-52k-filtered.json          # Medical instruction dataset (filtered)
+│   ├── chatdoctor-cleaned-filtered.json       # ChatDoctor patient Q&A (cleaned, filtered)
+│   ├── medicationqa-filtered.json             # Medication Q&A (filtered)
+│   ├── mts-dialog-filtered.json               # Medical dialogue (filtered)
+│   ├── liveqa-filtered.json                   # LiveQA medical Q&A (filtered)
+│   ├── huatuo_encyclopedia_qa-filtered_flat.json      # Huatuo encyclopedia Q&A (filtered)
+│   ├── huatuo_knowledge_graph_qa-filtered_flat.json   # Huatuo knowledge graph Q&A (filtered)
+│   ├── Huatuo26M-Lite-filtered_flat.json      # Huatuo-26M-Lite Q&A (filtered)
+│   ├── medical_o1_sft_Chinese-filtered.json   # Chinese medical o1-style SFT data (filtered)
+│   ├── train_CMExam_single_sft.json           # CMExam single-choice training set (SFT format)
+│   ├── multimedqa_sft.json                    # MultiMedQA (SFT format)
+│   ├── medbullets_sft.json                    # MedBullets Q&A (SFT format)
+│   ├── CMB_multiple_sft.json                  # CMB multiple-choice training set (SFT format)
+│   ├── train_CMB_sin_sft.json                 # CMB single-choice training set (SFT format)
+│   ├── CMExam_multiple_sft.json               # CMExam multiple-choice training set (SFT format)
+│   ├── medqa_train.json                       # MedQA (USMLE) training set
+│   └── medmcqa_train.json                     # MedMCQA training set
 ├── benchmark/
 │   ├── checked_converted_medmcqa_test.json    # MedMCQA benchmark question set (270 questions)
 │   ├── checked_converted_medqa_test.json      # MedQA (USMLE) benchmark question set (138 questions)
@@ -233,6 +252,7 @@ python "Subgroup Forest Plot/glycemic control subgroup forest plot.py" \
 This repository includes two categories of data:
 
 **Fully available (real data, reproduces paper results):**
+- `D1/` — public exercise and weight-management corpus (86,900 entries across 18 datasets) used for supervised fine-tuning of EPS. Assembled from publicly available medical instruction datasets and filtered using a bilingual keyword lexicon to retain exercise- and weight-management–relevant instances (see Section 4.3.1 and Supplementary Table 1 for full keyword list and matching rules). Table A1 in the paper summarises D1 composition by target application, language, and number of examples.
 - `benchmark/checked_converted_medmcqa_test.json` — MedMCQA benchmark question set (270 questions) used for model evaluation.
 - `benchmark/checked_converted_medqa_test.json` — MedQA (USMLE) benchmark question set (138 questions) used for model evaluation.
 - `benchmark/checked_merged_CMExam_test.json` — CMExam benchmark question set used for model evaluation.
