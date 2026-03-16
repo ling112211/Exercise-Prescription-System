@@ -51,7 +51,7 @@ Exercise-Prescription-System/
 │   ├── evaluate_benchmark.py                  # Benchmark model inference and 95% CI computation
 │   └── plot_benchmark.py                      # Benchmark accuracy bar chart (Fig. 4) from pre-computed CSV
 ├── expert_pilot/
-│   └── plot_expert_evaluation.py              # Expert pilot evaluation grouped bar chart (Fig. 5)
+│   └── plot_expert_evaluation.py              # Expert pilot summaries, Friedman/Wilcoxon tests, and grouped bar chart (Fig. 5)
 ├── clinical_trial/
 │   ├── baseline_characteristics.py            # Baseline demographics tables (Tables 1 and 2)
 │   ├── weight_loss_analysis.py                # Weight-loss outcomes bar chart (Fig. 6)
@@ -139,15 +139,23 @@ Both `--input` and `--outdir` have the above defaults and may be omitted when ru
 
 ### Expert Pilot Evaluation (Fig. 5)
 
-Generates the grouped bar chart of mean scores (0–3 scale) across seven evaluation dimensions for three model variants.
+Computes descriptive mean scores with two-sided 95% t-based confidence intervals, runs Friedman omnibus tests with Holm adjustment across the seven dimensions, runs paired Wilcoxon signed-rank tests for the three prespecified pairwise comparisons, and generates the grouped bar chart for Fig. 5.
 
 ```bash
 python expert_pilot/plot_expert_evaluation.py \
     --input-dir data/expert_pilot \
+    --pair-key rater_id \
     --outdir outputs/expert_pilot
 ```
 
-Expected input files under `data/expert_pilot/`: `base_model.csv`, `eps_without_d2.csv`, `eps.csv`. Each CSV contains seven question columns (Q1–Q7) with A/B/C/D grades from 25 health managers.
+Expected input files under `data/expert_pilot/`: `base_model.csv`, `eps_without_d2.csv`, `eps.csv`. Each CSV contains a shared rater identifier column (`rater_id` in the bundled data) and seven question columns (Q1–Q7) with A/B/C/D grades or numeric 0–3 scores from 25 health managers.
+
+The script writes the following files to the output directory:
+- `<prefix>_means_ci.csv` — descriptive means, SDs, and 95% confidence intervals.
+- `<prefix>_aligned_scores.csv` — the paired analysis table after aligning raters across the three files.
+- `<prefix>_friedman_tests.csv` — omnibus Friedman test results with Holm adjustment across the seven dimensions.
+- `<prefix>_wilcoxon_pairwise_tests.csv` — paired Wilcoxon results with raw P values plus two Holm-adjusted columns: `p_holm_3pairs_within_dimension` (the manuscript reporting column) and `p_holm_7dims_within_comparison` (exported for transparency).
+- `<prefix>_bar_mean_ci.pdf` and `<prefix>_bar_mean_ci.png` — the grouped bar chart used for Fig. 5.
 
 ### Baseline Characteristics (Tables 1 and 2)
 
