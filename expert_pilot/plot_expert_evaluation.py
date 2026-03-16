@@ -425,7 +425,7 @@ def plot_grouped_bars(summary: pd.DataFrame, out_pdf: Path, out_png: Path, show:
     ax.xaxis.grid(False)
 
     handles, labels = ax.get_legend_handles_labels()
-    legend_order = [labels.index("EPS"), labels.index("EPS without D2"), labels.index("Base model")]
+    legend_order = [labels.index("Base model"), labels.index("EPS without D2"), labels.index("EPS")]
     ax.legend(
         [handles[i] for i in legend_order],
         [labels[i] for i in legend_order],
