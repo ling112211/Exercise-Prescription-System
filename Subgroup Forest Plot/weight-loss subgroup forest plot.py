@@ -482,7 +482,7 @@ def export_tables(
 # Main
 # =========================
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Weight-loss subgroup forest plot (EPS-human vs Human).")
+    p = argparse.ArgumentParser(description="Weight-loss subgroup forest plot (Extended Data Fig. 3; EPS-human vs Human).")
     p.add_argument("--eps", type=str, default="data/weight-loss/EPS-Human weight-loss.xlsx", help="EPS-human arm Excel file.")
     p.add_argument("--human", type=str, default="data/weight-loss/Human weight-loss.xlsx", help="Human arm Excel file.")
     p.add_argument("--out-prefix", type=str, default="outputs/weightloss/EPS_vs_Human_weightloss", help="Output prefix path (no extension).")

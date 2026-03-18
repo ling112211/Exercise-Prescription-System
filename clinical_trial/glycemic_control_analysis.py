@@ -250,7 +250,7 @@ def plot_glycemic_bars(
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Fasting glucose outcomes (Fig. 7).")
+    p = argparse.ArgumentParser(description="Fasting glucose outcomes (Fig. 5).")
     p.add_argument("--gly_human", type=str, default=None, help="Path to Human glycemic-control Excel.")
     p.add_argument("--gly_eps", type=str, default=None, help="Path to EPS-human glycemic-control Excel.")
     p.add_argument("--out_dir", type=str, default="outputs/clinical_trial", help="Output directory.")

@@ -407,7 +407,7 @@ def plot_weight_loss_bars(
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Weight-loss outcomes (Fig. 6).")
+    p = argparse.ArgumentParser(description="Weight-loss outcomes (Fig. 4).")
     p.add_argument("--weight_human", type=str, default=None, help="Path to Human weight-loss Excel.")
     p.add_argument("--weight_eps", type=str, default=None, help="Path to EPS-human weight-loss Excel.")
     p.add_argument("--out_dir", type=str, default="outputs/clinical_trial", help="Output directory.")
