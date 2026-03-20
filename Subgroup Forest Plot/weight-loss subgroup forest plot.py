@@ -331,7 +331,7 @@ def build_subgroup_table(df: pd.DataFrame) -> pd.DataFrame:
             continue
 
         # Use declared category order if categorical; otherwise use sorted unique values
-        if pd.api.types.is_categorical_dtype(df[sg_col]):
+        if isinstance(df[sg_col].dtype, pd.CategoricalDtype):
             levels = list(df[sg_col].cat.categories)
         else:
             levels = sorted(df[sg_col].dropna().unique().tolist())
