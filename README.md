@@ -81,6 +81,10 @@ Exercise-Prescription-System/
 │   └── glycemic_control_analysis.py           # Fasting glucose outcomes bar chart (Fig. 5)
 ├── questionnaire/
 │   └── participant_reported.py                # Participant-reported outcomes radar chart (Fig. 6)
+├── sensitivity_analysis/
+│   ├── ITT_weight_loss.py                     # ITT sensitivity analysis for weight-loss cohort (MI + MNAR + BOCF)
+│   ├── ITT_glycemic.py                        # ITT sensitivity analysis for glycemic-control cohort (MI + MNAR + BOCF)
+│   └── tipping_point_analysis.py              # Tipping-point analysis for both cohorts
 └── Subgroup Forest Plot/
     ├── weight-loss subgroup forest plot.py    # Subgroup forest plot for weight-loss cohort
     └── glycemic control subgroup forest plot.py  # Subgroup forest plot for glycemic-control cohort
@@ -120,6 +124,9 @@ Exercise-Prescription-System/
 | `clinical_trial/glycemic_control_analysis.py` | Fig. 5 | `data/example/` (**example only**) |
 | `questionnaire/participant_reported.py` | Fig. 6 | `data/example/` (**example only**) |
 | `Subgroup Forest Plot/*.py` | Extended Data Figs. 3-4 | `data/example/` (**example only**) |
+| `sensitivity_analysis/ITT_weight_loss.py` | Supplementary Table (ITT weight-loss) | `data/example/` (**example only**) |
+| `sensitivity_analysis/ITT_glycemic.py` | Supplementary Table (ITT glycemic) | `data/example/` (**example only**) |
+| `sensitivity_analysis/tipping_point_analysis.py` | Supplementary Table (tipping-point) | `data/example/` (**example only**) |
 
 The example data under `data/example/` are anonymised synthetic files provided solely to verify that the code runs without errors. They do **not** reproduce the numerical results or figures reported in the paper. To obtain the real clinical trial data (weight-loss RCT, glycemic-control RCT, and questionnaire), please contact the corresponding author (see [Data Availability](#data-availability)).
 
@@ -253,6 +260,45 @@ python "Subgroup Forest Plot/glycemic control subgroup forest plot.py" \
     --out_table outputs/subgroup/glycemic_subgroup.xlsx \
     --out_png   outputs/subgroup/glycemic_subgroup.png \
     --out_pdf   outputs/subgroup/glycemic_subgroup.pdf
+```
+
+### ITT Sensitivity Analysis (Supplementary Tables)
+
+Performs Intention-to-Treat sensitivity analyses using multiple imputation (MICE under MAR), MNAR delta-adjustment, and baseline observation carried forward (BOCF). Results are saved as multi-sheet Excel workbooks.
+
+> **Note**: The commands below use the example data provided in `data/example/`. The outputs will **not** match the supplementary tables in the paper. Replace the paths and `--n_randomized_*` values with your real data once access has been granted.
+
+```bash
+# Weight-loss ITT sensitivity analysis
+python sensitivity_analysis/ITT_weight_loss.py \
+    --weight_human data/example/weight_loss/human_arm.xlsx \
+    --weight_eps   data/example/weight_loss/eps_arm.xlsx \
+    --n_randomized_human 100 --n_randomized_eps 100 \
+    --out_dir outputs/sensitivity_analysis
+
+# Glycemic-control ITT sensitivity analysis (exploratory)
+python sensitivity_analysis/ITT_glycemic.py \
+    --gly_human data/example/glycemic/human_arm.xlsx \
+    --gly_eps   data/example/glycemic/eps_arm.xlsx \
+    --n_randomized_human 50 --n_randomized_eps 50 \
+    --out_dir outputs/sensitivity_analysis
+```
+
+### Tipping-Point Analysis (Supplementary Table)
+
+Determines how much worse missing outcomes in the EPS arm would need to be (relative to MAR imputation) before the treatment effect loses statistical significance.
+
+> **Note**: The commands below use the example data provided in `data/example/`. The outputs will **not** match the supplementary table in the paper. Replace the paths and `--n_rand_*` values with your real data once access has been granted.
+
+```bash
+python sensitivity_analysis/tipping_point_analysis.py \
+    --weight_human data/example/weight_loss/human_arm.xlsx \
+    --weight_eps   data/example/weight_loss/eps_arm.xlsx \
+    --gly_human    data/example/glycemic/human_arm.xlsx \
+    --gly_eps      data/example/glycemic/eps_arm.xlsx \
+    --n_rand_human_wl 100 --n_rand_eps_wl 100 \
+    --n_rand_human_gl 50  --n_rand_eps_gl 50 \
+    --out_dir outputs/sensitivity_analysis
 ```
 
 ## Data Availability

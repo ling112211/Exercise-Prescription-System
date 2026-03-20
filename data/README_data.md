@@ -58,6 +58,10 @@ Exercise-Prescription-System/
 │   └── glycemic_control_analysis.py           # Fasting glucose outcomes bar chart (Fig. 5)
 ├── questionnaire/
 │   └── participant_reported.py                # Participant-reported outcomes radar chart (Fig. 6)
+├── sensitivity_analysis/
+│   ├── ITT_weight_loss.py                     # ITT sensitivity analysis for weight-loss cohort (MI + MNAR + BOCF)
+│   ├── ITT_glycemic.py                        # ITT sensitivity analysis for glycemic-control cohort (MI + MNAR + BOCF)
+│   └── tipping_point_analysis.py              # Tipping-point analysis for both cohorts
 └── Subgroup Forest Plot/
     ├── weight-loss subgroup forest plot.py    # Subgroup forest plot for weight-loss cohort
     └── glycemic control subgroup forest plot.py  # Subgroup forest plot for glycemic-control cohort
@@ -97,6 +101,9 @@ Exercise-Prescription-System/
 | `clinical_trial/glycemic_control_analysis.py` | Fig. 5 | `data/example/` (**example only**) |
 | `questionnaire/participant_reported.py` | Fig. 6 | `data/example/` (**example only**) |
 | `Subgroup Forest Plot/*.py` | Extended Data Figs. 3-4 | `data/example/` (**example only**) |
+| `sensitivity_analysis/ITT_weight_loss.py` | Supplementary Table (ITT weight-loss) | `data/example/` (**example only**) |
+| `sensitivity_analysis/ITT_glycemic.py` | Supplementary Table (ITT glycemic) | `data/example/` (**example only**) |
+| `sensitivity_analysis/tipping_point_analysis.py` | Supplementary Table (tipping-point) | `data/example/` (**example only**) |
 
 The example data under `data/example/` are anonymised synthetic files provided solely to verify that the code runs without errors. They do **not** reproduce the numerical results or figures reported in the paper. To obtain the real clinical trial data (weight-loss RCT, glycemic-control RCT, and questionnaire), please contact the corresponding author (see [Data Availability](#data-availability)).
 
