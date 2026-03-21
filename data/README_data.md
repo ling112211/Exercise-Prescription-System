@@ -59,9 +59,9 @@ Exercise-Prescription-System/
 ├── questionnaire/
 │   └── participant_reported.py                # Participant-reported outcomes radar chart (Fig. 6)
 ├── sensitivity_analysis/
-│   ├── ITT_weight_loss.py                     # ITT sensitivity analysis for weight-loss cohort (MI + MNAR + BOCF)
-│   ├── ITT_glycemic.py                        # ITT sensitivity analysis for glycemic-control cohort (MI + MNAR + BOCF)
-│   └── tipping_point_analysis.py              # Tipping-point analysis for both cohorts
+│   ├── ITT_weight_loss.py                     # ITT sensitivity analysis for weight-loss cohort (MI + BOCF)
+│   ├── ITT_glycemic.py                        # ITT sensitivity analysis for glycemic-control cohort (MI + BOCF)
+│   └── tipping_point_analysis.py              # MNAR delta-adjustment and tipping-point analysis for both cohorts
 └── Subgroup Forest Plot/
     ├── weight-loss subgroup forest plot.py    # Subgroup forest plot for weight-loss cohort
     └── glycemic control subgroup forest plot.py  # Subgroup forest plot for glycemic-control cohort
