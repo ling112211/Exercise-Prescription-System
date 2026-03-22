@@ -12,6 +12,10 @@ Secondary scenario:
   Differential delta for weight loss, where missing EPS-arm outcomes are
   made worse while missing Human-arm outcomes are made better.
 
+Default behavior uses the repository's example data and constructs missing
+baselines by within-arm resampling. If optional missing-data files are
+provided, those baseline records are used instead.
+
 This script is the single source of MNAR delta-adjustment and tipping-point
 results. The ITT scripts handle MAR MI, available-case analyses, BOCF, and
 diagnostics only.
@@ -61,6 +65,14 @@ def fmt_p(value):
     if pd.isna(value):
         return ""
     return "<0.0001" if value < 1e-4 else f"{value:.4f}"
+
+
+def describe_source(source):
+    if source == "resampled_from_completers":
+        return "Within-arm resampling from completers"
+    if source.startswith("file:"):
+        return f"Missing baseline file: {source[5:]}"
+    return source
 
 
 def rubins_rules(estimates, variances):
@@ -142,6 +154,41 @@ def load_weight_arm(path, label):
     return arm
 
 
+def load_weight_missing(path, label):
+    df = pd.read_excel(path)
+    df.columns = df.columns.astype(str).str.strip()
+
+    col_age = pick_col(df, ["age", "年龄"])
+    col_sex = pick_col(df, ["sex", "性别"])
+    col_bmi = pick_col(df, ["bmi", "BMI"])
+    col_height = pick_col(df, ["height", "身高"])
+    col_baseline_wt = pick_col(
+        df,
+        ["baseline_weight_kg", "入营体重", "入营体重kg", "入营体重（档案）", "初始体重（档案）"],
+    )
+    col_hba1c = pick_col(df, ["hba1c", "HbA1c", "糖化血红蛋白"])
+
+    hba1c = clean_numeric(df[col_hba1c]) if col_hba1c else pd.Series(np.nan, index=df.index, dtype=float)
+    hba1c = hba1c.copy()
+    hba1c[hba1c == 0] = np.nan
+
+    missing = pd.DataFrame(
+        {
+            "age": clean_numeric(df[col_age]).values if col_age else np.nan,
+            "sex": clean_sex(df[col_sex]).values if col_sex else np.nan,
+            "bmi": clean_numeric(df[col_bmi]).values if col_bmi else np.nan,
+            "height": clean_numeric(df[col_height]).values if col_height else np.nan,
+            "baseline_wt": clean_numeric(df[col_baseline_wt]).values if col_baseline_wt else np.nan,
+            "hba1c": hba1c.values,
+            "wl_kg": np.nan,
+            "wl_pct": np.nan,
+        }
+    )
+    missing["group"] = label
+    missing["completer"] = 0
+    return missing
+
+
 def load_glycemic_arm(path, label):
     df = pd.read_excel(path)
     df.columns = df.columns.astype(str).str.strip()
@@ -172,6 +219,98 @@ def load_glycemic_arm(path, label):
     arm["fpg_change"] = arm["fpg0"] - arm["fpg1"]
     arm["fpg_change_pct"] = np.where(arm["fpg0"] > 0, arm["fpg_change"] / arm["fpg0"] * 100, np.nan)
     return arm
+
+
+def build_glycemic_missing_frame(df, label):
+    col_age = pick_col(df, ["age", "年龄"])
+    col_sex = pick_col(df, ["sex", "性别"])
+    col_bmi = pick_col(df, ["bmi", "BMI"])
+    col_height = pick_col(df, ["height", "身高"])
+    col_bw = pick_col(df, ["baseline_weight_kg", "入营体重", "入营体重kg", "初始体重（档案）"])
+    col_fpg0 = pick_col(df, ["baseline_fpg_mmol", "入营空腹"])
+    col_ppg0 = pick_col(df, ["baseline_ppg_mmol", "入营餐后2小时"])
+
+    missing = pd.DataFrame(
+        {
+            "age": clean_numeric(df[col_age]).values if col_age else np.nan,
+            "sex": clean_sex(df[col_sex]).values if col_sex else np.nan,
+            "bmi": clean_numeric(df[col_bmi]).values if col_bmi else np.nan,
+            "height": clean_numeric(df[col_height]).values if col_height else np.nan,
+            "bw": clean_numeric(df[col_bw]).values if col_bw else np.nan,
+            "fpg0": clean_numeric(df[col_fpg0]).values if col_fpg0 else np.nan,
+            "ppg0": clean_numeric(df[col_ppg0]).values if col_ppg0 else np.nan,
+            "fpg1": np.nan,
+            "fpg_change": np.nan,
+            "fpg_change_pct": np.nan,
+        }
+    )
+    missing["group"] = label
+    missing["completer"] = 0
+    return missing
+
+
+def eps_missing_needs_shift_correction(df):
+    col_age = pick_col(df, ["年龄"])
+    if not col_age:
+        return False
+    observed = df[col_age]
+    non_null = observed.notna()
+    if non_null.sum() == 0:
+        return False
+    numeric = clean_numeric(observed[non_null]).notna().sum()
+    return numeric < non_null.sum()
+
+
+def load_shifted_eps_missing(path):
+    df_raw = pd.read_excel(path, header=None)
+    headers = df_raw.iloc[0].tolist()
+
+    col_meas = headers.index("最新测量数据时间")
+    col_age = headers.index("年龄")
+    col_sex = headers.index("性别")
+    col_ht = headers.index("身高")
+    col_wt = headers.index("初始体重（档案）")
+    col_bmi = headers.index("bmi")
+    col_fpg0 = headers.index("入营空腹")
+
+    records = []
+    for _, row in df_raw.iloc[1:].iterrows():
+        age_val = row.iloc[col_age]
+        try:
+            age = float(age_val)
+            sex_raw = str(row.iloc[col_sex])
+            height = float(row.iloc[col_ht]) if pd.notna(row.iloc[col_ht]) else np.nan
+            weight = float(row.iloc[col_wt]) if pd.notna(row.iloc[col_wt]) else np.nan
+            bmi = float(row.iloc[col_bmi]) if pd.notna(row.iloc[col_bmi]) else np.nan
+        except (TypeError, ValueError):
+            age = float(row.iloc[col_meas]) if pd.notna(row.iloc[col_meas]) else np.nan
+            sex_raw = str(row.iloc[col_age])
+            height = float(row.iloc[col_sex]) if pd.notna(row.iloc[col_sex]) else np.nan
+            weight = float(row.iloc[col_ht]) if pd.notna(row.iloc[col_ht]) else np.nan
+            bmi = float(row.iloc[col_wt]) if pd.notna(row.iloc[col_wt]) else np.nan
+
+        fpg0 = float(row.iloc[col_fpg0]) if pd.notna(row.iloc[col_fpg0]) else np.nan
+        records.append({"age": age, "sex_raw": sex_raw, "height": height, "bw": weight, "bmi": bmi, "fpg0": fpg0})
+
+    missing = pd.DataFrame(records)
+    missing["sex"] = clean_sex(missing["sex_raw"].astype(str))
+    missing["ppg0"] = np.nan
+    missing["fpg1"] = np.nan
+    missing["fpg_change"] = np.nan
+    missing["fpg_change_pct"] = np.nan
+    missing["group"] = "EPS"
+    missing["completer"] = 0
+    return missing[["age", "sex", "bmi", "height", "bw", "fpg0", "ppg0", "fpg1", "group", "completer", "fpg_change", "fpg_change_pct"]]
+
+
+def load_glycemic_missing(path, label):
+    df = pd.read_excel(path)
+    df.columns = df.columns.astype(str).str.strip()
+
+    if label == "EPS" and eps_missing_needs_shift_correction(df):
+        return load_shifted_eps_missing(path), "Applied EPS one-column shift correction to demographic fields"
+
+    return build_glycemic_missing_frame(df, label), ""
 
 
 def generate_missing(comp_df, n_missing, rng, baseline_cols):
@@ -210,6 +349,19 @@ def generate_missing_gl(comp_df, n_missing, rng):
         sampled["fpg_change_pct"] = np.nan
         sampled["completer"] = 0
     return sampled
+
+
+def resolve_weight_missing(comp_df, label, n_expected, rng, missing_path=None):
+    if missing_path:
+        return load_weight_missing(missing_path, label), f"file:{missing_path}", ""
+    return generate_missing_wl(comp_df, n_expected, rng), "resampled_from_completers", ""
+
+
+def resolve_glycemic_missing(comp_df, label, n_expected, rng, missing_path=None):
+    if missing_path:
+        missing, note = load_glycemic_missing(missing_path, label)
+        return missing, f"file:{missing_path}", note
+    return generate_missing_gl(comp_df, n_expected, rng), "resampled_from_completers", ""
 
 
 def mice_wl(df_full, m=20, seed=42):
@@ -301,8 +453,6 @@ def tipping_search(df_itt, mice_func, outcome_col, delta_range, covars, apply_to
             variances.append(se**2 if not np.isnan(se) else np.nan)
 
         q_bar, lo, hi, p_value, _ = rubins_rules(coefs, variances)
-        significant = p_value < 0.05 if not np.isnan(p_value) else None
-        ci_excludes_zero = (lo > 0 or hi < 0) if not (np.isnan(lo) or np.isnan(hi)) else None
         results.append(
             {
                 "delta": delta,
@@ -310,8 +460,8 @@ def tipping_search(df_itt, mice_func, outcome_col, delta_range, covars, apply_to
                 "ci_lo": lo,
                 "ci_hi": hi,
                 "p": p_value,
-                "significant": significant,
-                "ci_excludes_zero": ci_excludes_zero,
+                "significant": p_value < 0.05 if not np.isnan(p_value) else None,
+                "ci_excludes_zero": (lo > 0 or hi < 0) if not (np.isnan(lo) or np.isnan(hi)) else None,
             }
         )
 
@@ -319,10 +469,10 @@ def tipping_search(df_itt, mice_func, outcome_col, delta_range, covars, apply_to
 
 
 def find_tipping(results):
-    for row in results:
+    for index, row in enumerate(results):
         if row["significant"] is False or row["ci_excludes_zero"] is False:
-            return row["delta"], row["p"], row["ci_lo"], row["ci_hi"]
-    return None, None, None, None
+            return row["delta"], row["p"], row["ci_lo"], row["ci_hi"], index == 0
+    return None, None, None, None, False
 
 
 def detail_df(results):
@@ -346,8 +496,12 @@ def main():
     parser = argparse.ArgumentParser(description="Tipping-point sensitivity analysis for the weight-loss and glycemic cohorts")
     parser.add_argument("--weight_human", type=str, default="data/example/weight_loss/human_arm.xlsx")
     parser.add_argument("--weight_eps", type=str, default="data/example/weight_loss/eps_arm.xlsx")
+    parser.add_argument("--weight_human_missing", type=str, default=None)
+    parser.add_argument("--weight_eps_missing", type=str, default=None)
     parser.add_argument("--gly_human", type=str, default="data/example/glycemic/human_arm.xlsx")
     parser.add_argument("--gly_eps", type=str, default="data/example/glycemic/eps_arm.xlsx")
+    parser.add_argument("--gly_human_missing", type=str, default=None)
+    parser.add_argument("--gly_eps_missing", type=str, default=None)
     parser.add_argument("--n_rand_human_wl", type=int, default=100)
     parser.add_argument("--n_rand_eps_wl", type=int, default=100)
     parser.add_argument("--n_rand_human_gl", type=int, default=50)
@@ -367,39 +521,79 @@ def main():
 
     comp_h_wl = load_weight_arm(args.weight_human, "Human")
     comp_e_wl = load_weight_arm(args.weight_eps, "EPS")
-
     rng_wl = np.random.default_rng(args.seed)
-    n_miss_h_wl = max(0, args.n_rand_human_wl - len(comp_h_wl))
-    n_miss_e_wl = max(0, args.n_rand_eps_wl - len(comp_e_wl))
 
-    df_itt_wl = pd.concat(
-        [
-            comp_h_wl,
-            comp_e_wl,
-            generate_missing_wl(comp_h_wl, n_miss_h_wl, rng_wl),
-            generate_missing_wl(comp_e_wl, n_miss_e_wl, rng_wl),
-        ],
-        ignore_index=True,
+    n_miss_h_wl_expected = max(0, args.n_rand_human_wl - len(comp_h_wl))
+    n_miss_e_wl_expected = max(0, args.n_rand_eps_wl - len(comp_e_wl))
+    miss_h_wl, source_h_wl, note_h_wl = resolve_weight_missing(
+        comp_h_wl,
+        "Human",
+        n_miss_h_wl_expected,
+        rng_wl,
+        args.weight_human_missing,
     )
+    miss_e_wl, source_e_wl, note_e_wl = resolve_weight_missing(
+        comp_e_wl,
+        "EPS",
+        n_miss_e_wl_expected,
+        rng_wl,
+        args.weight_eps_missing,
+    )
+    if args.weight_human_missing and len(miss_h_wl) != n_miss_h_wl_expected:
+        print(
+            f"Warning: Human weight missing file has {len(miss_h_wl)} rows, "
+            f"but randomized count implies {n_miss_h_wl_expected} missing participants."
+        )
+    if args.weight_eps_missing and len(miss_e_wl) != n_miss_e_wl_expected:
+        print(
+            f"Warning: EPS weight missing file has {len(miss_e_wl)} rows, "
+            f"but randomized count implies {n_miss_e_wl_expected} missing participants."
+        )
+
+    df_itt_wl = pd.concat([comp_h_wl, comp_e_wl, miss_h_wl, miss_e_wl], ignore_index=True)
     df_itt_wl["group_num"] = (df_itt_wl["group"] == "EPS").astype(float)
+    print(f"WL missing sources: Human={describe_source(source_h_wl)} | EPS={describe_source(source_e_wl)}")
+    print(f"WL ITT: N={len(df_itt_wl)} (Human={sum(df_itt_wl.group == 'Human')}, EPS={sum(df_itt_wl.group == 'EPS')})")
 
     comp_h_gl = load_glycemic_arm(args.gly_human, "Human")
     comp_e_gl = load_glycemic_arm(args.gly_eps, "EPS")
-
     rng_gl = np.random.default_rng(args.seed)
-    n_miss_h_gl = max(0, args.n_rand_human_gl - len(comp_h_gl))
-    n_miss_e_gl = max(0, args.n_rand_eps_gl - len(comp_e_gl))
 
-    df_itt_gl = pd.concat(
-        [
-            comp_h_gl,
-            comp_e_gl,
-            generate_missing_gl(comp_h_gl, n_miss_h_gl, rng_gl),
-            generate_missing_gl(comp_e_gl, n_miss_e_gl, rng_gl),
-        ],
-        ignore_index=True,
+    n_miss_h_gl_expected = max(0, args.n_rand_human_gl - len(comp_h_gl))
+    n_miss_e_gl_expected = max(0, args.n_rand_eps_gl - len(comp_e_gl))
+    miss_h_gl, source_h_gl, note_h_gl = resolve_glycemic_missing(
+        comp_h_gl,
+        "Human",
+        n_miss_h_gl_expected,
+        rng_gl,
+        args.gly_human_missing,
     )
+    miss_e_gl, source_e_gl, note_e_gl = resolve_glycemic_missing(
+        comp_e_gl,
+        "EPS",
+        n_miss_e_gl_expected,
+        rng_gl,
+        args.gly_eps_missing,
+    )
+    if args.gly_human_missing and len(miss_h_gl) != n_miss_h_gl_expected:
+        print(
+            f"Warning: Human glycemic missing file has {len(miss_h_gl)} rows, "
+            f"but randomized count implies {n_miss_h_gl_expected} missing participants."
+        )
+    if args.gly_eps_missing and len(miss_e_gl) != n_miss_e_gl_expected:
+        print(
+            f"Warning: EPS glycemic missing file has {len(miss_e_gl)} rows, "
+            f"but randomized count implies {n_miss_e_gl_expected} missing participants."
+        )
+
+    df_itt_gl = pd.concat([comp_h_gl, comp_e_gl, miss_h_gl, miss_e_gl], ignore_index=True)
     df_itt_gl["group_num"] = (df_itt_gl["group"] == "EPS").astype(float)
+    print(f"GL missing sources: Human={describe_source(source_h_gl)} | EPS={describe_source(source_e_gl)}")
+    if note_h_gl:
+        print(f"Human glycemic note: {note_h_gl}")
+    if note_e_gl:
+        print(f"EPS glycemic note: {note_e_gl}")
+    print(f"GL ITT: N={len(df_itt_gl)} (Human={sum(df_itt_gl.group == 'Human')}, EPS={sum(df_itt_gl.group == 'EPS')})")
 
     wl_covars = ["baseline_wt", "age", "sex", "bmi"]
     gl_covars = ["fpg0", "age", "sex", "bmi"]
@@ -495,8 +689,20 @@ def main():
 
     summary_rows = []
     for name, results, unit in analyses:
-        delta, p_value, lo, hi = find_tipping(results)
-        if delta is not None:
+        delta, p_value, lo, hi, already_nonsig = find_tipping(results)
+        if already_nonsig:
+            print(f"  {name}: already non-significant at delta=0, p={p_value:.4f}, CI=({lo:.3f}, {hi:.3f})")
+            summary_rows.append(
+                {
+                    "Analysis": name,
+                    "Tipping delta": "N/A (baseline non-sig)",
+                    "Unit": unit,
+                    "P at tipping": f"{p_value:.4f}",
+                    "CI at tipping": f"({lo:.3f}, {hi:.3f})",
+                    "Interpretation": "MAR baseline result is already non-significant; no additional MNAR shift is needed.",
+                }
+            )
+        elif delta is not None:
             print(f"  {name}: tipping at delta={delta:.1f} {unit}, p={p_value:.4f}, CI=({lo:.3f}, {hi:.3f})")
             summary_rows.append(
                 {
@@ -527,31 +733,42 @@ def main():
     df_wl_diff = detail_df(tp_wl_diff)
     df_gl = detail_df(tp_gl_eps)
 
-    notes = pd.DataFrame(
-        [
-            {"Item": "Purpose", "Details": "Quantify how far missing data must deviate from MAR to nullify the EPS benefit"},
-            {"Item": "Primary scenario", "Details": "Delta applied to missing EPS-arm outcomes only"},
-            {
-                "Item": "Differential scenario",
-                "Details": "For weight loss only: missing EPS outcomes are worsened while missing Human outcomes are improved",
-            },
-            {
-                "Item": "Weight-loss delta unit",
-                "Details": "kg applied to weight-loss kg, with weight-loss percent re-derived from baseline weight",
-            },
-            {
-                "Item": "Glycemic delta unit",
-                "Details": "mmol/L applied to endline fasting glucose, with change scores re-derived afterward",
-            },
-            {"Item": "Tipping criterion", "Details": "First delta where p > 0.05 or the 95% CI includes zero"},
-            {
-                "Item": "Model alignment",
-                "Details": "Covariates, naming, and MI settings match ITT_weight_loss.py and ITT_glycemic.py",
-            },
-            {"Item": "Imputations per delta", "Details": str(args.m_imputations)},
-            {"Item": "Seed", "Details": str(args.seed)},
-        ]
-    )
+    notes_rows = [
+        {"Item": "Purpose", "Details": "Quantify how far missing data must deviate from MAR to nullify the EPS benefit"},
+        {"Item": "Primary scenario", "Details": "Delta applied to missing EPS-arm outcomes only"},
+        {
+            "Item": "Differential scenario",
+            "Details": "For weight loss only: missing EPS outcomes are worsened while missing Human outcomes are improved",
+        },
+        {
+            "Item": "Weight-loss delta unit",
+            "Details": "kg applied to weight-loss kg, with weight-loss percent re-derived from baseline weight",
+        },
+        {
+            "Item": "Glycemic delta unit",
+            "Details": "mmol/L applied to endline fasting glucose, with change scores re-derived afterward",
+        },
+        {"Item": "Tipping criterion", "Details": "First delta where p > 0.05 or the 95% CI includes zero"},
+        {
+            "Item": "Model alignment",
+            "Details": "Covariates, naming, and MI settings match ITT_weight_loss.py and ITT_glycemic.py",
+        },
+        {"Item": "Weight missing source (Human)", "Details": describe_source(source_h_wl)},
+        {"Item": "Weight missing source (EPS)", "Details": describe_source(source_e_wl)},
+        {"Item": "Glycemic missing source (Human)", "Details": describe_source(source_h_gl)},
+        {"Item": "Glycemic missing source (EPS)", "Details": describe_source(source_e_gl)},
+        {"Item": "Imputations per delta", "Details": str(args.m_imputations)},
+        {"Item": "Seed", "Details": str(args.seed)},
+    ]
+    if note_h_wl:
+        notes_rows.append({"Item": "Weight Human preprocessing", "Details": note_h_wl})
+    if note_e_wl:
+        notes_rows.append({"Item": "Weight EPS preprocessing", "Details": note_e_wl})
+    if note_h_gl:
+        notes_rows.append({"Item": "Glycemic Human preprocessing", "Details": note_h_gl})
+    if note_e_gl:
+        notes_rows.append({"Item": "Glycemic EPS preprocessing", "Details": note_e_gl})
+    notes = pd.DataFrame(notes_rows)
 
     with pd.ExcelWriter(str(out_xlsx), engine="openpyxl") as writer:
         df_summary.to_excel(writer, sheet_name="Summary", index=False)
