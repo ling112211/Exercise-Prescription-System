@@ -4,15 +4,22 @@ ITT (Intention-to-Treat) Sensitivity Analysis - Weight-Loss Cohort
 Positioning: This is a sensitivity analysis supplementing the
 available-case primary analysis reported in the manuscript.
 
-Workflow:
-  1. Construct the ITT population from completers plus resampled missing
-     baselines within each arm
+Default workflow:
+  1. Build the ITT population from completers plus synthetic missing
+     baselines resampled within each arm
   2. Perform MAR multiple imputation on weight-loss kg only
   3. Re-derive weight-loss percent deterministically
   4. Pool ANCOVA and modified-Poisson models via Rubin's rules
   5. Report available-case ANCOVA for comparison
   6. Report BOCF (missing = 0 change)
   7. Summarize MI diagnostics
+
+Optional extension:
+  If `--weight_human_missing` / `--weight_eps_missing` are supplied,
+  those files are used as the missing-participant baseline records
+  instead of within-arm resampling. This keeps the current repository's
+  example-first defaults while allowing the real-missing-data workflow
+  from the updated analyses.
 
 Note: MNAR delta-adjustment and tipping-point analyses are handled in
 `tipping_point_analysis.py` so that missing-data sensitivity is defined in
@@ -73,6 +80,14 @@ def fmt_p(value):
     return "<0.0001" if value < 1e-4 else f"{value:.4f}"
 
 
+def describe_source(source):
+    if source == "resampled_from_completers":
+        return "Within-arm resampling from completers"
+    if source.startswith("file:"):
+        return f"Missing baseline file: {source[5:]}"
+    return source
+
+
 def load_weight_arm(path, label):
     df = pd.read_excel(path)
     df.columns = df.columns.astype(str).str.strip()
@@ -105,6 +120,41 @@ def load_weight_arm(path, label):
     return arm
 
 
+def load_weight_missing(path, label):
+    df = pd.read_excel(path)
+    df.columns = df.columns.astype(str).str.strip()
+
+    col_age = pick_col(df, ["age", "年龄"])
+    col_sex = pick_col(df, ["sex", "性别"])
+    col_bmi = pick_col(df, ["bmi", "BMI"])
+    col_height = pick_col(df, ["height", "身高"])
+    col_baseline_wt = pick_col(
+        df,
+        ["baseline_weight_kg", "入营体重", "入营体重kg", "入营体重（档案）", "初始体重（档案）"],
+    )
+    col_hba1c = pick_col(df, ["hba1c", "HbA1c", "糖化血红蛋白"])
+
+    hba1c = clean_numeric(df[col_hba1c]) if col_hba1c else pd.Series(np.nan, index=df.index, dtype=float)
+    hba1c = hba1c.copy()
+    hba1c[hba1c == 0] = np.nan
+
+    missing = pd.DataFrame(
+        {
+            "age": clean_numeric(df[col_age]).values if col_age else np.nan,
+            "sex": clean_sex(df[col_sex]).values if col_sex else np.nan,
+            "bmi": clean_numeric(df[col_bmi]).values if col_bmi else np.nan,
+            "height": clean_numeric(df[col_height]).values if col_height else np.nan,
+            "baseline_wt": clean_numeric(df[col_baseline_wt]).values if col_baseline_wt else np.nan,
+            "hba1c": hba1c.values,
+            "wl_kg": np.nan,
+            "wl_pct": np.nan,
+        }
+    )
+    missing["group"] = label
+    missing["completer"] = 0
+    return missing
+
+
 BASELINE_COLS = ["group", "age", "sex", "bmi", "height", "baseline_wt", "hba1c"]
 
 
@@ -129,6 +179,12 @@ def generate_missing_baseline(comp_df, n_missing, rng):
     sampled["wl_pct"] = np.nan
     sampled["completer"] = 0
     return sampled
+
+
+def resolve_missing_baseline(comp_df, label, n_expected, rng, missing_path=None):
+    if missing_path:
+        return load_weight_missing(missing_path, label), f"file:{missing_path}"
+    return generate_missing_baseline(comp_df, n_expected, rng), "resampled_from_completers"
 
 
 def run_mice(df_full, m=20, seed=42):
@@ -316,6 +372,18 @@ def main():
         help="Path to the EPS-arm weight-loss Excel file",
     )
     parser.add_argument(
+        "--weight_human_missing",
+        type=str,
+        default=None,
+        help="Optional Human-arm missing-baseline Excel file; if omitted, missing baselines are resampled",
+    )
+    parser.add_argument(
+        "--weight_eps_missing",
+        type=str,
+        default=None,
+        help="Optional EPS-arm missing-baseline Excel file; if omitted, missing baselines are resampled",
+    )
+    parser.add_argument(
         "--n_randomized_human",
         type=int,
         default=100,
@@ -341,27 +409,47 @@ def main():
     ensure_dir(out_dir)
     out_xlsx = out_dir / "ITT_weight_loss_results.xlsx"
 
-    n_rand_human = args.n_randomized_human
-    n_rand_eps = args.n_randomized_eps
-
     df_comp_human = load_weight_arm(args.weight_human, "Human")
     df_comp_eps = load_weight_arm(args.weight_eps, "EPS")
     print(f"Completers: EPS={len(df_comp_eps)}, Human={len(df_comp_human)}")
 
-    n_miss_human = max(0, n_rand_human - len(df_comp_human))
-    n_miss_eps = max(0, n_rand_eps - len(df_comp_eps))
-    print(f"Missing: EPS={n_miss_eps}, Human={n_miss_human}")
+    n_miss_human_expected = max(0, args.n_randomized_human - len(df_comp_human))
+    n_miss_eps_expected = max(0, args.n_randomized_eps - len(df_comp_eps))
+    print(f"Expected missing from randomized counts: EPS={n_miss_eps_expected}, Human={n_miss_human_expected}")
 
     rng = np.random.default_rng(args.seed)
-    df_itt = pd.concat(
-        [
-            df_comp_human,
-            df_comp_eps,
-            generate_missing_baseline(df_comp_human, n_miss_human, rng),
-            generate_missing_baseline(df_comp_eps, n_miss_eps, rng),
-        ],
-        ignore_index=True,
+    df_miss_human, source_human = resolve_missing_baseline(
+        df_comp_human,
+        "Human",
+        n_miss_human_expected,
+        rng,
+        missing_path=args.weight_human_missing,
     )
+    df_miss_eps, source_eps = resolve_missing_baseline(
+        df_comp_eps,
+        "EPS",
+        n_miss_eps_expected,
+        rng,
+        missing_path=args.weight_eps_missing,
+    )
+
+    if args.weight_human_missing and len(df_miss_human) != n_miss_human_expected:
+        print(
+            f"Warning: Human missing file has {len(df_miss_human)} rows, "
+            f"but randomized count implies {n_miss_human_expected} missing participants."
+        )
+    if args.weight_eps_missing and len(df_miss_eps) != n_miss_eps_expected:
+        print(
+            f"Warning: EPS missing file has {len(df_miss_eps)} rows, "
+            f"but randomized count implies {n_miss_eps_expected} missing participants."
+        )
+
+    n_itt_human = len(df_comp_human) + len(df_miss_human)
+    n_itt_eps = len(df_comp_eps) + len(df_miss_eps)
+    print(f"Missing baselines used: EPS={len(df_miss_eps)}, Human={len(df_miss_human)}")
+    print(f"Missing sources: EPS={describe_source(source_eps)} | Human={describe_source(source_human)}")
+
+    df_itt = pd.concat([df_comp_human, df_comp_eps, df_miss_human, df_miss_eps], ignore_index=True)
     df_itt["group_num"] = (df_itt["group"] == "EPS").astype(float)
 
     print(f"ITT: N={len(df_itt)} (Human={sum(df_itt.group == 'Human')}, EPS={sum(df_itt.group == 'EPS')})")
@@ -379,7 +467,10 @@ def main():
 
     for label, result in [("wl_kg", res_kg), ("wl_pct", res_pct)]:
         diff = result["diff"]
-        print(f"  {label}: ANCOVA diff = {fmt_ci(diff['est'], diff['lo'], diff['hi'])}, p={fmt_p(diff['p'])}, FMI={fmt(diff['fmi'])}")
+        print(
+            f"  {label}: ANCOVA diff = {fmt_ci(diff['est'], diff['lo'], diff['hi'])}, "
+            f"p={fmt_p(diff['p'])}, FMI={fmt(diff['fmi'])}"
+        )
     print(f"  >=2% RR: {fmt_ci(res_ge2['rr'], res_ge2['rr_lo'], res_ge2['rr_hi'])}, p={fmt_p(res_ge2['p'])}")
     print(f"  >=5% RR: {fmt_ci(res_ge5['rr'], res_ge5['rr_lo'], res_ge5['rr_hi'])}, p={fmt_p(res_ge5['p'])}")
 
@@ -407,14 +498,10 @@ def main():
         print(f"  {outcome}: diff={fmt_ci(coef, ac_results[outcome]['lo'], ac_results[outcome]['hi'])}, p={fmt_p(p_value)}")
 
     print("\n=== BOCF (missing = 0 change) ===")
-    df_bocf = pd.concat([df_comp_human, df_comp_eps], ignore_index=True)
-    for group_name, n_missing in [("Human", n_miss_human), ("EPS", n_miss_eps)]:
-        comp = df_comp_human if group_name == "Human" else df_comp_eps
-        missing = generate_missing_baseline(comp, n_missing, np.random.default_rng(args.seed + 1))
-        missing["wl_kg"] = 0.0
-        missing["wl_pct"] = 0.0
-        df_bocf = pd.concat([df_bocf, missing], ignore_index=True)
-    df_bocf["group_num"] = (df_bocf["group"] == "EPS").astype(float)
+    df_bocf = df_itt.copy()
+    missing_mask = df_bocf["completer"] == 0
+    df_bocf.loc[missing_mask, "wl_kg"] = 0.0
+    df_bocf.loc[missing_mask, "wl_pct"] = 0.0
 
     bocf_results = {}
     for outcome in ["wl_kg", "wl_pct"]:
@@ -465,8 +552,8 @@ def main():
             {
                 "Outcome": label,
                 "Analysis": "ITT (MI + ANCOVA, MAR)",
-                "N_EPS": n_rand_eps,
-                "N_Human": n_rand_human,
+                "N_EPS": n_itt_eps,
+                "N_Human": n_itt_human,
                 "EPS Mean (95% CI)": fmt_ci(
                     itt_result["eps_mean"]["est"], itt_result["eps_mean"]["lo"], itt_result["eps_mean"]["hi"]
                 ),
@@ -496,8 +583,8 @@ def main():
             {
                 "Outcome": label,
                 "Analysis": "BOCF (missing = 0 change, ANCOVA)",
-                "N_EPS": n_rand_eps,
-                "N_Human": n_rand_human,
+                "N_EPS": n_itt_eps,
+                "N_Human": n_itt_human,
                 "EPS Mean (95% CI)": "",
                 "Human Mean (95% CI)": "",
                 "ANCOVA Adj Diff (95% CI)": fmt_ci(bocf["diff"], bocf["lo"], bocf["hi"]),
@@ -511,8 +598,8 @@ def main():
             {
                 "Outcome": f">={threshold}% responder",
                 "Analysis": "ITT (MI + mod-Poisson, MAR)",
-                "N_EPS": n_rand_eps,
-                "N_Human": n_rand_human,
+                "N_EPS": n_itt_eps,
+                "N_Human": n_itt_human,
                 "EPS Mean (95% CI)": f"{result['eps_pct']:.1f}%",
                 "Human Mean (95% CI)": f"{result['hum_pct']:.1f}%",
                 "ANCOVA Adj Diff (95% CI)": f"RR {fmt_ci(result['rr'], result['rr_lo'], result['rr_hi'])}",
@@ -523,14 +610,21 @@ def main():
 
     df_main = pd.DataFrame(rows_main)
     df_diag = pd.DataFrame(diag_rows)
+
+    limitation = (
+        "Baseline covariates for missing participants are approximated via within-arm resampling from completers"
+        if "resampled_from_completers" in {source_human, source_eps}
+        else "Missing participants use supplied baseline records from the missing-data files"
+    )
     notes = pd.DataFrame(
         [
             {"Item": "Primary analysis", "Details": "Available-case analysis reported in the manuscript"},
             {"Item": "This script", "Details": "Sensitivity analysis: ITT with MI under MAR"},
-            {
-                "Item": "Limitation",
-                "Details": "Baseline covariates for missing participants are approximated via within-arm resampling from completers",
-            },
+            {"Item": "Randomized target", "Details": f"Human={args.n_randomized_human}, EPS={args.n_randomized_eps}"},
+            {"Item": "ITT N used", "Details": f"Human={n_itt_human}, EPS={n_itt_eps}"},
+            {"Item": "Missing baseline source (Human)", "Details": describe_source(source_human)},
+            {"Item": "Missing baseline source (EPS)", "Details": describe_source(source_eps)},
+            {"Item": "Limitation", "Details": limitation},
             {
                 "Item": "Imputation target",
                 "Details": "Weight-loss kg only; weight-loss percent is re-derived deterministically from baseline weight",
