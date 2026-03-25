@@ -1,0 +1,354 @@
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+
+import numpy as np
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill
+
+
+HEADER_FILL = PatternFill("solid", start_color="DBEAFE")
+HEADER_FONT = Font(bold=True, color="1E3A8A")
+
+WEIGHT_HUMAN_COUNTS = [1, 1, 2, 2, 3, 1, 2, 3]
+WEIGHT_EPS_COUNTS = [2, 3, 3, 4, 4, 5, 3, 5]
+GLYCEMIC_HUMAN_COUNTS = [1, 1, 2, 2, 2, 3, 1, 2]
+GLYCEMIC_EPS_COUNTS = [2, 3, 3, 4, 2, 4, 3, 5]
+
+WEIGHT_HUMAN_NAMES = [
+    ("Ava Stone", "Ava"),
+    ("Bella Reed", "Bella"),
+    ("Clara Young", "Clara"),
+    ("Diana Price", "Diana"),
+    ("Elena Brooks", "Elena"),
+    ("Fiona Hayes", "Fiona"),
+    ("Grace West", "Grace"),
+    ("Hazel Scott", "Hazel"),
+]
+WEIGHT_EPS_NAMES = [
+    ("Ivy Turner", "Ivy"),
+    ("Julia Hart", "Julia"),
+    ("Kara Woods", "Kara"),
+    ("Luna Ward", "Luna"),
+    ("Mia Perry", "Mia"),
+    ("Nora Lane", "Nora"),
+    ("Olive Cole", "Olive"),
+    ("Piper Bell", "Piper"),
+]
+GLYCEMIC_HUMAN_NAMES = [
+    ("Quinn Baker", "Quinn"),
+    ("Riley Long", "Riley"),
+    ("Sofia Price", "Sofia"),
+    ("Tessa Green", "Tessa"),
+    ("Uma Fisher", "Uma"),
+    ("Vera Knight", "Vera"),
+    ("Wendy Ross", "Wendy"),
+    ("Xena Moore", "Xena"),
+]
+GLYCEMIC_EPS_NAMES = [
+    ("Yara Dixon", "Yara"),
+    ("Zoe Kelly", "Zoe"),
+    ("Aaron Fox", "Aaron"),
+    ("Blake Reed", "Blake"),
+    ("Carter Hall", "Carter"),
+    ("Derek Wells", "Derek"),
+    ("Ethan Shaw", "Ethan"),
+    ("Felix Lowe", "Felix"),
+]
+
+
+def log(message: str) -> None:
+    print(f"[synthetic-checkin] {message}", flush=True)
+
+
+def ensure_parent_dir(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+
+def autosize(ws) -> None:
+    widths: dict[int, int] = {}
+    for row in ws.iter_rows():
+        for cell in row:
+            if cell.value is None:
+                continue
+            widths[cell.column] = max(widths.get(cell.column, 0), len(str(cell.value)))
+    for idx, width in widths.items():
+        ws.column_dimensions[ws.cell(row=1, column=idx).column_letter].width = min(width + 2, 32)
+
+
+def write_table(path: Path, headers: list[str], rows: list[list[object]]) -> None:
+    ensure_parent_dir(path)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Sheet1"
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.fill = HEADER_FILL
+        cell.font = HEADER_FONT
+    for row in rows:
+        ws.append(row)
+    ws.freeze_panes = "A2"
+    ws.auto_filter.ref = ws.dimensions
+    autosize(ws)
+    wb.save(path)
+
+
+def build_weight_rows(names: list[tuple[str, str]], counts: list[int], group: str, rng: np.random.Generator) -> tuple[list[list[object]], list[dict[str, object]]]:
+    rows: list[list[object]] = []
+    manifest: list[dict[str, object]] = []
+    sexes = ["F", "F", "M", "F", "M", "F", "F", "M"]
+    for index, ((full_name, short_name), feedback_count) in enumerate(zip(names, counts), start=1):
+        age = int(rng.integers(32, 67))
+        bmi = round(float(rng.uniform(23.0, 34.0)), 1)
+        baseline_weight = round(float(rng.uniform(62.0, 96.0)), 1)
+        group_bonus = 0.22 if group == "eps" else 0.0
+        noise = float(rng.uniform(-0.08, 0.08))
+        weight_loss_kg = round(0.45 + 0.18 * feedback_count + group_bonus + noise, 2)
+        endline_weight = round(baseline_weight - weight_loss_kg, 2)
+        weight_loss_pct = round(weight_loss_kg / baseline_weight, 4)
+        participant_id = f"WL-{group.upper()}-{index:02d}"
+        rows.append(
+            [
+                participant_id,
+                full_name,
+                age,
+                sexes[index - 1],
+                bmi,
+                baseline_weight,
+                endline_weight,
+                weight_loss_kg,
+                weight_loss_pct,
+            ]
+        )
+        manifest.append(
+            {
+                "participant_id": participant_id,
+                "user_nickname": full_name,
+                "alias": short_name,
+                "feedback_count": feedback_count,
+            }
+        )
+    return rows, manifest
+
+
+def build_glycemic_rows(names: list[tuple[str, str]], counts: list[int], group: str, rng: np.random.Generator) -> tuple[list[list[object]], list[dict[str, object]]]:
+    rows: list[list[object]] = []
+    manifest: list[dict[str, object]] = []
+    sexes = ["F", "M", "F", "F", "M", "F", "M", "M"]
+    for index, ((full_name, short_name), feedback_count) in enumerate(zip(names, counts), start=1):
+        age = int(rng.integers(34, 70))
+        bmi = round(float(rng.uniform(21.5, 33.5)), 1)
+        baseline_fpg = round(float(rng.uniform(5.8, 9.6)), 2)
+        group_bonus = 0.12 if group == "eps" else 0.0
+        noise = float(rng.uniform(-0.05, 0.05))
+        fpg_reduction = round(0.18 + 0.11 * feedback_count + group_bonus + noise, 2)
+        endpoint_fpg = round(max(4.1, baseline_fpg - fpg_reduction), 2)
+        participant_id = f"GLY-{group.upper()}-{index:02d}"
+        rows.append(
+            [
+                participant_id,
+                full_name,
+                age,
+                sexes[index - 1],
+                bmi,
+                baseline_fpg,
+                endpoint_fpg,
+            ]
+        )
+        manifest.append(
+            {
+                "participant_id": participant_id,
+                "user_nickname": full_name,
+                "alias": short_name,
+                "feedback_count": feedback_count,
+            }
+        )
+    return rows, manifest
+
+
+def build_chat_rows(
+    *,
+    participants: list[dict[str, object]],
+    keyword: str,
+    arm_label: str,
+    coach_name: str,
+    start_day: int,
+) -> list[list[object]]:
+    rows: list[list[object]] = []
+    minute_cursor = 0
+    for index, participant in enumerate(participants, start=1):
+        full_name = str(participant["user_nickname"])
+        short_name = str(participant["alias"])
+        feedback_count = int(participant["feedback_count"])
+        participant_day = start_day + index
+
+        rows.append(
+            [
+                f"2026-03-{participant_day:02d} 08:{minute_cursor:02d}",
+                full_name,
+                short_name,
+                f"今天完成了{20 + index * 5}分钟快走和拉伸。",
+            ]
+        )
+        minute_cursor = (minute_cursor + 7) % 60
+
+        for turn in range(feedback_count):
+            rows.append(
+                [
+                    f"2026-03-{participant_day:02d} 19:{minute_cursor:02d}",
+                    coach_name,
+                    arm_label,
+                    f"@{short_name} {keyword} 已记录，今天第{turn + 1}次反馈：继续保持步数和晚餐控制。",
+                ]
+            )
+            minute_cursor = (minute_cursor + 3) % 60
+
+        rows.append(
+            [
+                f"2026-03-{participant_day:02d} 21:{minute_cursor:02d}",
+                full_name,
+                short_name,
+                "收到，谢谢老师，我明天继续打卡。",
+            ]
+        )
+        minute_cursor = (minute_cursor + 5) % 60
+
+    rows.append(
+        [
+            f"2026-03-{start_day + len(participants) + 2:02d} 20:15",
+            coach_name,
+            arm_label,
+            f"@UnknownUser {keyword} 这是一条故意保留的未匹配示例。",
+        ]
+    )
+    return rows
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Generate synthetic participant workbooks and chat-export workbooks for the checkin-analysis workflow."
+    )
+    parser.add_argument("--out-root", type=Path, default=Path("data/example/checkin"), help="Root directory for synthetic example files.")
+    parser.add_argument("--seed", type=int, default=20260325, help="Random seed.")
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    rng = np.random.default_rng(args.seed)
+
+    manifest: dict[str, object] = {"seed": args.seed, "datasets": {}}
+
+    weight_root = args.out_root / "weight_loss"
+    gly_root = args.out_root / "glycemic"
+
+    weight_headers = [
+        "participant_id",
+        "user_nickname",
+        "age",
+        "sex",
+        "BMI",
+        "baseline_weight_kg",
+        "endline_weight_kg",
+        "weight_loss_kg",
+        "weight_loss_pct",
+    ]
+    gly_headers = [
+        "participant_id",
+        "user_nickname",
+        "age",
+        "sex",
+        "BMI",
+        "baseline_fpg_mmol",
+        "endpoint_fpg_mmol",
+    ]
+    chat_headers = ["timestamp", "sender_name", "sender_group_nickname", "message_content"]
+
+    weight_human_rows, weight_human_manifest = build_weight_rows(WEIGHT_HUMAN_NAMES, WEIGHT_HUMAN_COUNTS, "human", rng)
+    weight_eps_rows, weight_eps_manifest = build_weight_rows(WEIGHT_EPS_NAMES, WEIGHT_EPS_COUNTS, "eps", rng)
+    gly_human_rows, gly_human_manifest = build_glycemic_rows(GLYCEMIC_HUMAN_NAMES, GLYCEMIC_HUMAN_COUNTS, "human", rng)
+    gly_eps_rows, gly_eps_manifest = build_glycemic_rows(GLYCEMIC_EPS_NAMES, GLYCEMIC_EPS_COUNTS, "eps", rng)
+
+    write_table(weight_root / "human_arm.xlsx", weight_headers, weight_human_rows)
+    write_table(weight_root / "eps_arm.xlsx", weight_headers, weight_eps_rows)
+    write_table(gly_root / "human_arm.xlsx", gly_headers, gly_human_rows)
+    write_table(gly_root / "eps_arm.xlsx", gly_headers, gly_eps_rows)
+
+    write_table(
+        weight_root / "human_chat_history.xlsx",
+        chat_headers,
+        build_chat_rows(
+            participants=weight_human_manifest,
+            keyword="#daily_activity_checkin",
+            arm_label="HumanCoach",
+            coach_name="Coach Li",
+            start_day=1,
+        ),
+    )
+    write_table(
+        weight_root / "eps_chat_history.xlsx",
+        chat_headers,
+        build_chat_rows(
+            participants=weight_eps_manifest,
+            keyword="#exercise_feedback",
+            arm_label="EPSCoach",
+            coach_name="Coach Sun",
+            start_day=10,
+        ),
+    )
+    write_table(
+        gly_root / "human_chat_history.xlsx",
+        chat_headers,
+        build_chat_rows(
+            participants=gly_human_manifest,
+            keyword="#daily_activity_checkin",
+            arm_label="HumanCoach",
+            coach_name="Coach Wu",
+            start_day=1,
+        ),
+    )
+    write_table(
+        gly_root / "eps_chat_history.xlsx",
+        chat_headers,
+        build_chat_rows(
+            participants=gly_eps_manifest,
+            keyword="#exercise_feedback",
+            arm_label="EPSCoach",
+            coach_name="Coach Zhao",
+            start_day=10,
+        ),
+    )
+
+    manifest["datasets"] = {
+        "weight_loss": {
+            "human_participants": weight_human_manifest,
+            "eps_participants": weight_eps_manifest,
+            "files": {
+                "human_arm": str(weight_root / "human_arm.xlsx"),
+                "eps_arm": str(weight_root / "eps_arm.xlsx"),
+                "human_chat_history": str(weight_root / "human_chat_history.xlsx"),
+                "eps_chat_history": str(weight_root / "eps_chat_history.xlsx"),
+            },
+        },
+        "glycemic": {
+            "human_participants": gly_human_manifest,
+            "eps_participants": gly_eps_manifest,
+            "files": {
+                "human_arm": str(gly_root / "human_arm.xlsx"),
+                "eps_arm": str(gly_root / "eps_arm.xlsx"),
+                "human_chat_history": str(gly_root / "human_chat_history.xlsx"),
+                "eps_chat_history": str(gly_root / "eps_chat_history.xlsx"),
+            },
+        },
+    }
+
+    manifest_path = args.out_root / "synthetic_manifest.json"
+    ensure_parent_dir(manifest_path)
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    log(f"Wrote synthetic data under {args.out_root}")
+
+
+if __name__ == "__main__":
+    main()

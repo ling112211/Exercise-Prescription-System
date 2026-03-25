@@ -38,6 +38,18 @@ Exercise-Prescription-System/
 │   │   ├── eps_without_d2.csv                 # Expert ratings for base model + D1 (REAL DATA — reproduces Fig. 8)
 │   │   └── eps.csv                            # Expert ratings for full EPS (REAL DATA — reproduces Fig. 8)
 │   └── example/                               # EXAMPLE DATA ONLY — for code verification, not paper results
+│       ├── checkin/
+│       │   ├── weight_loss/
+│       │   │   ├── human_arm.xlsx
+│       │   │   ├── eps_arm.xlsx
+│       │   │   ├── human_chat_history.xlsx
+│       │   │   └── eps_chat_history.xlsx
+│       │   ├── glycemic/
+│       │   │   ├── human_arm.xlsx
+│       │   │   ├── eps_arm.xlsx
+│       │   │   ├── human_chat_history.xlsx
+│       │   │   └── eps_chat_history.xlsx
+│       │   └── synthetic_manifest.json
 │       ├── weight_loss/
 │       │   ├── human_arm.xlsx                 # Anonymised example data (does NOT reproduce paper Tables/Figs)
 │       │   └── eps_arm.xlsx
@@ -54,6 +66,10 @@ Exercise-Prescription-System/
 │   └── plot_expert_evaluation.py              # Expert pilot summaries, Friedman/Wilcoxon tests, and grouped bar chart (Fig. 8)
 ├── clinical_trial/
 │   ├── baseline_characteristics.py            # Baseline demographics tables (Tables 1 and 2)
+│   ├── checkin_analysis/
+│   │   ├── generate_synthetic_checkin_data.py
+│   │   ├── build_checkin_dataset.py
+│   │   └── feedback_mediation.py
 │   ├── weight_loss_analysis.py                # Weight-loss outcomes bar chart (Fig. 4)
 │   └── glycemic_control_analysis.py           # Fasting glucose outcomes bar chart (Fig. 5)
 ├── questionnaire/
@@ -99,6 +115,7 @@ Exercise-Prescription-System/
 | `clinical_trial/baseline_characteristics.py` | Tables 1 & 2 | `data/example/` (**example only**) |
 | `clinical_trial/weight_loss_analysis.py` | Fig. 4 | `data/example/` (**example only**) |
 | `clinical_trial/glycemic_control_analysis.py` | Fig. 5 | `data/example/` (**example only**) |
+| `clinical_trial/checkin_analysis/*.py` | Tagged-checkin linkage + exploratory mediation | `data/example/checkin/` (**example only**) |
 | `questionnaire/participant_reported.py` | Fig. 6 | `data/example/` (**example only**) |
 | `Subgroup Forest Plot/*.py` | Extended Data Figs. 3-4 | `data/example/` (**example only**) |
 | `sensitivity_analysis/ITT_weight_loss.py` | Supplementary Table (ITT weight-loss) | `data/example/` (**example only**) |
@@ -108,6 +125,8 @@ Exercise-Prescription-System/
 The example data under `data/example/` are anonymised synthetic files provided solely to verify that the code runs without errors. They do **not** reproduce the numerical results or figures reported in the paper. To obtain the real clinical trial data (weight-loss RCT, glycemic-control RCT, and questionnaire), please contact the corresponding author (see [Data Availability](#data-availability)).
 
 For the three `sensitivity_analysis/*.py` scripts, the repository does **not** bundle missing-participant baseline files. When no `--*_missing` arguments are supplied, the scripts reconstruct the missing participants by within-arm resampling from completers so that the bundled example datasets still run end-to-end. If you have controlled-access real missing-baseline files, or you create your own synthetic missing-data examples, you can pass them via the optional `--weight_human_missing`, `--weight_eps_missing`, `--gly_human_missing`, and `--gly_eps_missing` arguments.
+
+For `clinical_trial/checkin_analysis/*.py`, the repository bundles synthetic participant workbooks and chat-export workbooks under `data/example/checkin/` so the tagged-message linkage and exploratory mediation workflow can be run end-to-end without controlled chat exports. These files are strictly for verification and do **not** reproduce any paper result.
 
 ## How to Reproduce the Results
 
