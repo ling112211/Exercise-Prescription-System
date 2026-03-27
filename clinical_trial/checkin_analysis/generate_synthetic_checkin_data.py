@@ -171,6 +171,7 @@ def build_glycemic_rows(names: list[tuple[str, str]], counts: list[int], group: 
 def build_chat_rows(
     *,
     participants: list[dict[str, object]],
+    cohort: str,
     keyword: str,
     arm_label: str,
     coach_name: str,
@@ -178,29 +179,74 @@ def build_chat_rows(
 ) -> list[list[object]]:
     rows: list[list[object]] = []
     minute_cursor = 0
+    if cohort == "weight_loss":
+        participant_templates = [
+            "今天完成了{minutes}分钟快走和拉伸，晚餐控制得还可以。",
+            "上午散步{minutes}分钟，晚上又补了力量训练，感觉状态不错。",
+            "今天步数大概有{steps}步，还做了拉伸和深蹲。",
+            "今天按照计划完成了有氧训练，运动后没有加餐。",
+        ]
+        feedback_templates = [
+            "@{short_name} {keyword} 做得很好。根据你这周的记录，今天已经完成约{minutes}分钟活动，建议晚餐后再快走10分钟，继续保持步数。",
+            "@{short_name} {keyword} 很棒，你最近执行得比较稳定。可以尝试把拉伸延长到8分钟，并注意控制晚餐主食比例。",
+            "@{short_name} {keyword} 这次反馈重点看步数和训练连续性。建议明天把步行安排在饭后，保持节奏，你在进步。",
+            "@{short_name} {keyword} 今天的完成度不错。结合你目前的状态，推荐继续快走加简单抗阻训练，注意补水和睡眠。",
+        ]
+        reply_templates = [
+            "收到，谢谢老师，我明天继续打卡。",
+            "好的，我会按建议把饭后步行也加上。",
+            "明白了，我会继续保持今天的节奏。",
+        ]
+    else:
+        participant_templates = [
+            "今天餐后散步{minutes}分钟，空腹血糖感觉比前几天稳定一些。",
+            "上午快走后记录了血糖，下午又做了轻度力量训练。",
+            "今天控制了晚餐，总步数大概{steps}步，餐后活动也完成了。",
+            "今天按照计划运动，餐后没有吃零食，准备继续观察空腹血糖。",
+        ]
+        feedback_templates = [
+            "@{short_name} {keyword} 很好。根据你最近的血糖记录，建议餐后再步行10到15分钟，继续保持控糖节奏。",
+            "@{short_name} {keyword} 做得不错，你这周的执行比较稳定。可以尝试把晚餐后活动固定下来，关注空腹和餐后血糖变化。",
+            "@{short_name} {keyword} 今天反馈重点是控糖连续性。建议晚餐主食再略减一些，并保持饭后快走，你有明显进步。",
+            "@{short_name} {keyword} 很棒，结合你目前的情况，推荐继续中等强度步行并记录空腹血糖，注意作息规律。",
+        ]
+        reply_templates = [
+            "收到，我会继续按这个节奏控糖。",
+            "好的，我明天把饭后步行时间再延长一点。",
+            "明白了，我会继续记录空腹和餐后情况。",
+        ]
+
     for index, participant in enumerate(participants, start=1):
         full_name = str(participant["user_nickname"])
         short_name = str(participant["alias"])
         feedback_count = int(participant["feedback_count"])
         participant_day = start_day + index
+        minutes = 18 + index * 4
+        steps = 4200 + index * 650
 
         rows.append(
             [
                 f"2026-03-{participant_day:02d} 08:{minute_cursor:02d}",
                 full_name,
                 short_name,
-                f"今天完成了{20 + index * 5}分钟快走和拉伸。",
+                participant_templates[(index - 1) % len(participant_templates)].format(minutes=minutes, steps=steps),
             ]
         )
         minute_cursor = (minute_cursor + 7) % 60
 
         for turn in range(feedback_count):
+            feedback_hour = min(21, 11 + turn * 3 + (index % 3))
             rows.append(
                 [
-                    f"2026-03-{participant_day:02d} 19:{minute_cursor:02d}",
+                    f"2026-03-{participant_day:02d} {feedback_hour:02d}:{minute_cursor:02d}",
                     coach_name,
                     arm_label,
-                    f"@{short_name} {keyword} 已记录，今天第{turn + 1}次反馈：继续保持步数和晚餐控制。",
+                    feedback_templates[(index + turn) % len(feedback_templates)].format(
+                        short_name=short_name,
+                        keyword=keyword,
+                        minutes=minutes + turn * 5,
+                        steps=steps + turn * 400,
+                    ),
                 ]
             )
             minute_cursor = (minute_cursor + 3) % 60
@@ -210,7 +256,7 @@ def build_chat_rows(
                 f"2026-03-{participant_day:02d} 21:{minute_cursor:02d}",
                 full_name,
                 short_name,
-                "收到，谢谢老师，我明天继续打卡。",
+                reply_templates[(index - 1) % len(reply_templates)],
             ]
         )
         minute_cursor = (minute_cursor + 5) % 60
@@ -281,6 +327,7 @@ def main() -> None:
         chat_headers,
         build_chat_rows(
             participants=weight_human_manifest,
+            cohort="weight_loss",
             keyword="#daily_activity_checkin",
             arm_label="HumanCoach",
             coach_name="Coach Li",
@@ -292,6 +339,7 @@ def main() -> None:
         chat_headers,
         build_chat_rows(
             participants=weight_eps_manifest,
+            cohort="weight_loss",
             keyword="#exercise_feedback",
             arm_label="EPSCoach",
             coach_name="Coach Sun",
@@ -303,6 +351,7 @@ def main() -> None:
         chat_headers,
         build_chat_rows(
             participants=gly_human_manifest,
+            cohort="glycemic",
             keyword="#daily_activity_checkin",
             arm_label="HumanCoach",
             coach_name="Coach Wu",
@@ -314,6 +363,7 @@ def main() -> None:
         chat_headers,
         build_chat_rows(
             participants=gly_eps_manifest,
+            cohort="glycemic",
             keyword="#exercise_feedback",
             arm_label="EPSCoach",
             coach_name="Coach Zhao",

@@ -69,7 +69,8 @@ Exercise-Prescription-System/
 │   ├── checkin_analysis/
 │   │   ├── generate_synthetic_checkin_data.py
 │   │   ├── build_checkin_dataset.py
-│   │   └── feedback_mediation.py
+│   │   ├── feedback_mediation.py
+│   │   └── enhanced_feedback_mediation.py
 │   ├── weight_loss_analysis.py                # Weight-loss outcomes bar chart (Fig. 4)
 │   └── glycemic_control_analysis.py           # Fasting glucose outcomes bar chart (Fig. 5)
 ├── questionnaire/
@@ -115,7 +116,7 @@ Exercise-Prescription-System/
 | `clinical_trial/baseline_characteristics.py` | Tables 1 & 2 | `data/example/` (**example only**) |
 | `clinical_trial/weight_loss_analysis.py` | Fig. 4 | `data/example/` (**example only**) |
 | `clinical_trial/glycemic_control_analysis.py` | Fig. 5 | `data/example/` (**example only**) |
-| `clinical_trial/checkin_analysis/*.py` | Tagged-checkin linkage + exploratory mediation | `data/example/checkin/` (**example only**) |
+| `clinical_trial/checkin_analysis/*.py` | Tagged-checkin linkage + exploratory/enhanced mediation | `data/example/checkin/` (**example only**) |
 | `questionnaire/participant_reported.py` | Fig. 6 | `data/example/` (**example only**) |
 | `Subgroup Forest Plot/*.py` | Extended Data Figs. 3-4 | `data/example/` (**example only**) |
 | `sensitivity_analysis/ITT_weight_loss.py` | Supplementary Table (ITT weight-loss) | `data/example/` (**example only**) |
@@ -126,7 +127,7 @@ The example data under `data/example/` are anonymised synthetic files provided s
 
 For the three `sensitivity_analysis/*.py` scripts, the repository does **not** bundle missing-participant baseline files. When no `--*_missing` arguments are supplied, the scripts reconstruct the missing participants by within-arm resampling from completers so that the bundled example datasets still run end-to-end. If you have controlled-access real missing-baseline files, or you create your own synthetic missing-data examples, you can pass them via the optional `--weight_human_missing`, `--weight_eps_missing`, `--gly_human_missing`, and `--gly_eps_missing` arguments.
 
-For `clinical_trial/checkin_analysis/*.py`, the repository bundles synthetic participant workbooks and chat-export workbooks under `data/example/checkin/` so the tagged-message linkage and exploratory mediation workflow can be run end-to-end without controlled chat exports. These files are strictly for verification and do **not** reproduce any paper result.
+For `clinical_trial/checkin_analysis/*.py`, the repository bundles synthetic participant workbooks and chat-export workbooks under `data/example/checkin/` so the tagged-message linkage plus exploratory/enhanced mediation workflows can be run end-to-end without controlled chat exports. These files are strictly for verification and do **not** reproduce any paper result.
 
 ## How to Reproduce the Results
 
