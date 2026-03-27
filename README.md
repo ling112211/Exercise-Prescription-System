@@ -92,7 +92,8 @@ Exercise-Prescription-System/
 │   ├── checkin_analysis/
 │   │   ├── generate_synthetic_checkin_data.py # Creates synthetic participant/chat workbooks for verification
 │   │   ├── build_checkin_dataset.py           # Links tagged chat messages to participants and appends count columns
-│   │   └── feedback_mediation.py              # Exploratory mediation analysis using actual feedback counts
+│   │   ├── feedback_mediation.py              # Exploratory mediation analysis using actual feedback counts
+│   │   └── enhanced_feedback_mediation.py     # Four-module enhanced mediation using counts, latency, and text quality
 │   ├── weight_loss_analysis.py                # Weight-loss outcomes bar chart (Fig. 4)
 │   └── glycemic_control_analysis.py           # Fasting glucose outcomes bar chart (Fig. 5)
 ├── questionnaire/
@@ -138,7 +139,7 @@ Exercise-Prescription-System/
 | `clinical_trial/baseline_characteristics.py` | Tables 1 & 2 | `data/example/` (**example only**) |
 | `clinical_trial/weight_loss_analysis.py` | Fig. 4 | `data/example/` (**example only**) |
 | `clinical_trial/glycemic_control_analysis.py` | Fig. 5 | `data/example/` (**example only**) |
-| `clinical_trial/checkin_analysis/*.py` | Tagged-checkin linkage + exploratory mediation | `data/example/checkin/` (**example only**) |
+| `clinical_trial/checkin_analysis/*.py` | Tagged-checkin linkage + exploratory/enhanced mediation | `data/example/checkin/` (**example only**) |
 | `questionnaire/participant_reported.py` | Fig. 6 | `data/example/` (**example only**) |
 | `Subgroup Forest Plot/*.py` | Extended Data Figs. 3-4 | `data/example/` (**example only**) |
 | `sensitivity_analysis/ITT_weight_loss.py` | Supplementary Table (ITT weight-loss) | `data/example/` (**example only**) |
@@ -149,7 +150,7 @@ The example data under `data/example/` are anonymised synthetic files provided s
 
 For the three `sensitivity_analysis/*.py` scripts, the repository does **not** bundle missing-participant baseline files. When no `--*_missing` arguments are supplied, the scripts reconstruct the missing participants by within-arm resampling from completers so that the bundled example datasets still run end-to-end. If you have controlled-access real missing-baseline files, or you create your own synthetic missing-data examples, you can pass them via the optional `--weight_human_missing`, `--weight_eps_missing`, `--gly_human_missing`, and `--gly_eps_missing` arguments.
 
-For `clinical_trial/checkin_analysis/*.py`, the repository bundles fully synthetic participant workbooks and chat-export workbooks under `data/example/checkin/`. These files are provided solely so that the tagged-message linkage and exploratory mediation workflow can be executed end-to-end without access to controlled trial chat exports. They do **not** correspond to the paper's real trial messages or mediation estimates.
+For `clinical_trial/checkin_analysis/*.py`, the repository bundles fully synthetic participant workbooks and chat-export workbooks under `data/example/checkin/`. These files are provided solely so that the tagged-message linkage plus exploratory/enhanced mediation workflows can be executed end-to-end without access to controlled trial chat exports. They do **not** correspond to the paper's real trial messages or mediation estimates.
 
 ## How to Reproduce the Results
 
@@ -249,9 +250,11 @@ python clinical_trial/glycemic_control_analysis.py \
     --out_dir   outputs/clinical_trial
 ```
 
-### Tagged Check-In Linkage And Exploratory Mediation
+### Tagged Check-In Linkage, Exploratory Mediation, And Enhanced Mediation
 
-Builds actual feedback counts from chat-export workbooks using keyword matching plus participant linking, then runs an exploratory mediation analysis using those counts as the mediator.
+Builds actual feedback counts from chat-export workbooks using keyword matching plus participant linking, then supports both the original exploratory mediation analysis and a four-module enhanced mediation workflow.
+
+`clinical_trial/checkin_analysis/enhanced_feedback_mediation.py` consolidates the previously separate weight-loss and glycemic enhanced mediation scripts into one cohort-driven entrypoint that matches the repository structure.
 
 > **Note**: The commands below use the synthetic example data provided in `data/example/checkin/`. The outputs verify that the code runs, but they do **not** reproduce any paper figure or estimate.
 
@@ -325,6 +328,38 @@ The mediation script writes four output files per cohort:
 - `<cohort>_feedback_mediation_report.md` — human-readable memo.
 - `<cohort>_feedback_mediation_results.xlsx` — diagnostics, participant dataset, and model tables.
 - `<cohort>_feedback_mediation_plot.png` — dose-response and bootstrap plots.
+
+**Step 4 — Run the enhanced mediation analyses**
+
+```bash
+python clinical_trial/checkin_analysis/enhanced_feedback_mediation.py \
+    --cohort weight_loss \
+    --human-file outputs/checkin_analysis/weight_loss/human_checkin.xlsx \
+    --eps-file outputs/checkin_analysis/weight_loss/eps_checkin.xlsx \
+    --human-report outputs/checkin_analysis/weight_loss/human_checkin_report.json \
+    --eps-report outputs/checkin_analysis/weight_loss/eps_checkin_report.json \
+    --human-chat-file data/example/checkin/weight_loss/human_chat_history.xlsx \
+    --eps-chat-file data/example/checkin/weight_loss/eps_chat_history.xlsx \
+    --outdir outputs/checkin_analysis/weight_loss
+
+python clinical_trial/checkin_analysis/enhanced_feedback_mediation.py \
+    --cohort glycemic \
+    --human-file outputs/checkin_analysis/glycemic/human_checkin.xlsx \
+    --eps-file outputs/checkin_analysis/glycemic/eps_checkin.xlsx \
+    --human-report outputs/checkin_analysis/glycemic/human_checkin_report.json \
+    --eps-report outputs/checkin_analysis/glycemic/eps_checkin_report.json \
+    --human-chat-file data/example/checkin/glycemic/human_chat_history.xlsx \
+    --eps-chat-file data/example/checkin/glycemic/eps_chat_history.xlsx \
+    --outdir outputs/checkin_analysis/glycemic
+```
+
+The enhanced mediation script writes four additional output files per cohort:
+- `<cohort>_enhanced_feedback_mediation_summary.json` — machine-readable summary for the four modules.
+- `<cohort>_enhanced_feedback_mediation_report.md` — human-readable memo covering interaction, matching, latency, and quality-index results.
+- `<cohort>_enhanced_feedback_mediation_results.xlsx` — workbook with diagnostics, participant features, descriptives, and one sheet per module.
+- `<cohort>_enhanced_feedback_mediation_plot.png` — six-panel summary plot for dose-response, latency, and quality effects.
+
+By default, the enhanced script assumes the synthetic example keywords `#daily_activity_checkin` and `#exercise_feedback`. If you run it on the real Chinese chat exports, pass `--human-keyword "#日常活动打卡"` and `--eps-keyword "#运动点评"` as needed.
 
 ### Participant-Reported Outcomes (Fig. 6)
 
