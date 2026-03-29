@@ -1,24 +1,20 @@
 """
 ITT Sensitivity Analysis - Glycemic-Control Cohort
 =================================================
-Positioning: This exploratory supplementary analysis extends the
-available-case primary analysis for the glycemic-control cohort.
+Positioning: Exploratory supplementary ITT sensitivity analysis for the
+glycemic-control cohort.
 
-Default workflow:
-  1. Construct the ITT population from completers plus synthetic missing
-     baselines resampled within each arm
-  2. Perform MAR multiple imputation on endline fasting glucose only
-  3. Re-derive fasting-glucose change metrics deterministically
-  4. Pool ANCOVA models via Rubin's rules
-  5. Report available-case ANCOVA for comparison
-  6. Report BOCF (missing endline FPG = baseline FPG)
-  7. Summarize MI diagnostics
-
-Optional extension:
-  If `--gly_human_missing` / `--gly_eps_missing` are supplied, those
-  baseline files are used for the missing participants instead of
-  within-arm resampling. This preserves the current repository defaults
-  while supporting the updated real-missing-data workflow.
+Reference workflow:
+  1. Load completer data from the randomized cohort.
+  2. If missing-baseline Excel files are supplied, use those real baseline
+     records for non-completers.
+  3. Repository fallback: if missing-baseline files are not supplied,
+     reconstruct the missing participants by within-arm resampling from
+     completers so the bundled example data still run end-to-end.
+  4. Build the ITT population and impute endline fasting glucose under MAR.
+  5. Re-derive fasting-glucose change metrics deterministically.
+  6. Pool ANCOVA models via Rubin's rules.
+  7. Report available-case ANCOVA, BOCF, and MI diagnostics.
 
 Note: MNAR delta-adjustment and tipping-point analyses are handled in
 `tipping_point_analysis.py` so that missing-data sensitivity is defined in
@@ -29,13 +25,14 @@ from __future__ import annotations
 
 import argparse
 import math
+import warnings
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import warnings
 
-warnings.filterwarnings("ignore")
+warnings.filterwarnings("ignore", category=UserWarning, module="statsmodels")
+warnings.filterwarnings("ignore", message=".*convergence.*", category=RuntimeWarning)
 
 
 def clean_numeric(series):
@@ -81,7 +78,7 @@ def fmt_p(value):
 
 def describe_source(source):
     if source == "resampled_from_completers":
-        return "Within-arm resampling from completers"
+        return "Within-arm resampling from completers (repository fallback)"
     if source.startswith("file:"):
         return f"Missing baseline file: {source[5:]}"
     return source
@@ -202,7 +199,9 @@ def load_shifted_eps_missing(path):
     missing["fpg_change_pct"] = np.nan
     missing["group"] = "EPS"
     missing["completer"] = 0
-    return missing[["age", "sex", "bmi", "height", "bw", "fpg0", "ppg0", "fpg1", "ppg1", "group", "completer", "fpg_change", "fpg_change_pct"]]
+    return missing[
+        ["age", "sex", "bmi", "height", "bw", "fpg0", "ppg0", "fpg1", "ppg1", "group", "completer", "fpg_change", "fpg_change_pct"]
+    ]
 
 
 def load_glycemic_missing(path, label):
@@ -216,6 +215,7 @@ def load_glycemic_missing(path, label):
 
 
 BASELINE_COLS = ["group", "age", "sex", "bmi", "height", "bw", "fpg0", "ppg0"]
+IMPUTE_COLS = ["group_num", "age", "sex", "bmi", "fpg0", "ppg0", "fpg1"]
 
 
 def generate_missing(comp_df, n_missing, rng):
@@ -255,8 +255,7 @@ def run_mice(df_full, m=20, seed=42):
     from sklearn.impute import IterativeImputer
     from sklearn.linear_model import BayesianRidge
 
-    candidate_covars = ["group_num", "age", "sex", "bmi", "fpg0", "ppg0"]
-    mi_covars = [col for col in candidate_covars if col in df_full.columns and df_full[col].notna().any()]
+    mi_covars = [col for col in IMPUTE_COLS[:-1] if col in df_full.columns and df_full[col].notna().any()]
     impute_cols = mi_covars + ["fpg1"]
 
     base = df_full[impute_cols].copy()
@@ -356,11 +355,11 @@ def pool_ancova(datasets, outcome_col, covars=None):
             (human_values.std(ddof=1) / math.sqrt(len(human_values))) ** 2 if len(human_values) > 1 else np.nan
         )
 
-    q_bar, se, lo, hi, p_value, df, fmi = rubins_rules(coefs, variances)
+    q_bar, se, lo, hi, p_value, _, fmi = rubins_rules(coefs, variances)
     eps_q, _, eps_lo, eps_hi, _, _, _ = rubins_rules(eps_means, eps_vars)
     human_q, _, human_lo, human_hi, _, _, _ = rubins_rules(human_means, human_vars)
     return {
-        "diff": {"est": q_bar, "se": se, "lo": lo, "hi": hi, "p": p_value, "fmi": fmi, "df": df},
+        "diff": {"est": q_bar, "se": se, "lo": lo, "hi": hi, "p": p_value, "fmi": fmi},
         "eps_mean": {"est": eps_q, "lo": eps_lo, "hi": eps_hi},
         "hum_mean": {"est": human_q, "lo": human_lo, "hi": human_hi},
     }
@@ -384,13 +383,13 @@ def main():
         "--gly_human_missing",
         type=str,
         default=None,
-        help="Optional Human-arm missing-baseline Excel file; if omitted, missing baselines are resampled",
+        help="Optional Human-arm missing-baseline Excel file",
     )
     parser.add_argument(
         "--gly_eps_missing",
         type=str,
         default=None,
-        help="Optional EPS-arm missing-baseline Excel file; if omitted, missing baselines are resampled",
+        help="Optional EPS-arm missing-baseline Excel file",
     )
     parser.add_argument(
         "--n_randomized_human",
@@ -453,6 +452,14 @@ def main():
             f"but randomized count implies {n_miss_e_expected} missing participants."
         )
 
+    for arm, n_comp, n_miss, n_rand in [
+        ("Human", len(comp_h), len(miss_h), args.n_randomized_human),
+        ("EPS", len(comp_e), len(miss_e), args.n_randomized_eps),
+    ]:
+        total = n_comp + n_miss
+        mark = "OK" if total == n_rand else "WARNING"
+        print(f"{mark}: {arm} {n_comp}+{n_miss}={total} (target={n_rand})")
+
     n_itt_h = len(comp_h) + len(miss_h)
     n_itt_e = len(comp_e) + len(miss_e)
     print(f"Missing baselines used: Human={len(miss_h)}, EPS={len(miss_e)}")
@@ -475,7 +482,6 @@ def main():
     print("\n=== ITT - ANCOVA (MAR MI) ===")
     res_fpg = pool_ancova(imputed_mar, "fpg_change")
     res_fpg_pct = pool_ancova(imputed_mar, "fpg_change_pct")
-
     for label, result in [("FPG change (mmol/L)", res_fpg), ("FPG change (%)", res_fpg_pct)]:
         diff = result["diff"]
         print(
@@ -599,40 +605,38 @@ def main():
     df_main = pd.DataFrame(rows_main)
     df_diag = pd.DataFrame(diag_rows)
 
-    limitation = (
-        "Baseline covariates for missing participants are approximated via within-arm resampling from completers"
-        if "resampled_from_completers" in {source_h, source_e}
-        else "Missing participants use supplied baseline records from the missing-data files"
-    )
+    if "resampled_from_completers" in {source_h, source_e}:
+        missing_workflow = (
+            "Missing-baseline files were not supplied, so the repository fallback "
+            "reconstructed missing participants by within-arm resampling from completers."
+        )
+    else:
+        missing_workflow = "Supplied missing-baseline files were used as the real baseline records for non-completers."
+
     notes_rows = [
-        {"Item": "Positioning", "Details": "Exploratory supplementary sensitivity analysis"},
+        {"Item": "Positioning", "Details": "Exploratory supplementary ITT sensitivity analysis - glycemic-control cohort"},
         {"Item": "Randomized target", "Details": f"Human={args.n_randomized_human}, EPS={args.n_randomized_eps}"},
+        {"Item": "Completers", "Details": f"Human={len(comp_h)}, EPS={len(comp_e)}"},
         {"Item": "ITT N used", "Details": f"Human={n_itt_h}, EPS={n_itt_e}"},
         {"Item": "Missing baseline source (Human)", "Details": describe_source(source_h)},
         {"Item": "Missing baseline source (EPS)", "Details": describe_source(source_e)},
-        {"Item": "Limitation", "Details": limitation},
+        {"Item": "Missing-baseline workflow", "Details": missing_workflow},
         {
-            "Item": "Imputation target",
-            "Details": "Endline fasting glucose only; change metrics are re-derived deterministically",
+            "Item": "PPG0 note",
+            "Details": "PPG0 for missing participants is used if available in the missing-baseline file; otherwise it remains NaN and is handled by MICE",
         },
+        {"Item": "Imputation target", "Details": "Endline fasting glucose only; change metrics are re-derived deterministically"},
+        {"Item": "MI covariates", "Details": ", ".join(IMPUTE_COLS)},
         {"Item": "MI method", "Details": "MICE via IterativeImputer + BayesianRidge, sample_posterior=True"},
         {"Item": "Analysis model", "Details": "ANCOVA: outcome ~ group + fpg0 + age + sex + bmi"},
         {"Item": "BOCF", "Details": "Missing endline FPG set equal to baseline FPG (0 change)"},
-        {
-            "Item": "MNAR / tipping point",
-            "Details": "See tipping_point_analysis.py for delta-adjustment and tipping-point sensitivity analyses",
-        },
+        {"Item": "MNAR / tipping point", "Details": "See tipping_point_analysis.py"},
         {"Item": "Seed", "Details": str(args.seed)},
-        {"Item": "Caution", "Details": "Interpret glycemic ITT results cautiously when the cohort is small"},
     ]
     if note_h:
-        notes_rows.append({"Item": "Human missing-data preprocessing", "Details": note_h})
+        notes_rows.append({"Item": "Human preprocessing note", "Details": note_h})
     if note_e:
-        notes_rows.append({"Item": "EPS missing-data preprocessing", "Details": note_e})
-    if miss_h["ppg0"].isna().all() and len(miss_h) > 0:
-        notes_rows.append({"Item": "Human ppg0 for missing", "Details": "Not available in missing-data file; set to NaN"})
-    if miss_e["ppg0"].isna().all() and len(miss_e) > 0:
-        notes_rows.append({"Item": "EPS ppg0 for missing", "Details": "Not available in missing-data file; set to NaN"})
+        notes_rows.append({"Item": "EPS preprocessing note", "Details": note_e})
     notes = pd.DataFrame(notes_rows)
 
     with pd.ExcelWriter(str(out_xlsx), engine="openpyxl") as writer:
