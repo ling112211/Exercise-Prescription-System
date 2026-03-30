@@ -12,9 +12,11 @@ Secondary scenario:
   Differential delta for weight loss, where missing EPS-arm outcomes are
   made worse while missing Human-arm outcomes are made better.
 
-Default behavior uses the repository's example data and constructs missing
-baselines by within-arm resampling. If optional missing-data files are
-provided, those baseline records are used instead.
+Reference workflow:
+  If missing-baseline Excel files are supplied, those records are used as
+  the real baseline data for non-completers. If they are not supplied, the
+  repository falls back to within-arm resampling from completers so the
+  bundled example data still run end-to-end.
 
 This script is the single source of MNAR delta-adjustment and tipping-point
 results. The ITT scripts handle MAR MI, available-case analyses, BOCF, and
@@ -31,7 +33,8 @@ import numpy as np
 import pandas as pd
 import warnings
 
-warnings.filterwarnings("ignore")
+warnings.filterwarnings("ignore", category=UserWarning, module="statsmodels")
+warnings.filterwarnings("ignore", message=".*convergence.*", category=RuntimeWarning)
 
 import statsmodels.api as sm
 
@@ -69,7 +72,7 @@ def fmt_p(value):
 
 def describe_source(source):
     if source == "resampled_from_completers":
-        return "Within-arm resampling from completers"
+        return "Within-arm resampling from completers (repository fallback)"
     if source.startswith("file:"):
         return f"Missing baseline file: {source[5:]}"
     return source
@@ -296,11 +299,14 @@ def load_shifted_eps_missing(path):
     missing["sex"] = clean_sex(missing["sex_raw"].astype(str))
     missing["ppg0"] = np.nan
     missing["fpg1"] = np.nan
+    missing["ppg1"] = np.nan
     missing["fpg_change"] = np.nan
     missing["fpg_change_pct"] = np.nan
     missing["group"] = "EPS"
     missing["completer"] = 0
-    return missing[["age", "sex", "bmi", "height", "bw", "fpg0", "ppg0", "fpg1", "group", "completer", "fpg_change", "fpg_change_pct"]]
+    return missing[
+        ["age", "sex", "bmi", "height", "bw", "fpg0", "ppg0", "fpg1", "ppg1", "group", "completer", "fpg_change", "fpg_change_pct"]
+    ]
 
 
 def load_glycemic_missing(path, label):
@@ -345,6 +351,7 @@ def generate_missing_gl(comp_df, n_missing, rng):
     sampled = generate_missing(comp_df, n_missing, rng, baseline_cols)
     if len(sampled) > 0:
         sampled["fpg1"] = np.nan
+        sampled["ppg1"] = np.nan
         sampled["fpg_change"] = np.nan
         sampled["fpg_change_pct"] = np.nan
         sampled["completer"] = 0
@@ -550,6 +557,14 @@ def main():
             f"but randomized count implies {n_miss_e_wl_expected} missing participants."
         )
 
+    for arm, n_comp, n_miss, n_rand in [
+        ("Human", len(comp_h_wl), len(miss_h_wl), args.n_rand_human_wl),
+        ("EPS", len(comp_e_wl), len(miss_e_wl), args.n_rand_eps_wl),
+    ]:
+        total = n_comp + n_miss
+        mark = "OK" if total == n_rand else "WARNING"
+        print(f"WL {mark}: {arm} {n_comp}+{n_miss}={total} (target={n_rand})")
+
     df_itt_wl = pd.concat([comp_h_wl, comp_e_wl, miss_h_wl, miss_e_wl], ignore_index=True)
     df_itt_wl["group_num"] = (df_itt_wl["group"] == "EPS").astype(float)
     print(f"WL missing sources: Human={describe_source(source_h_wl)} | EPS={describe_source(source_e_wl)}")
@@ -585,6 +600,14 @@ def main():
             f"Warning: EPS glycemic missing file has {len(miss_e_gl)} rows, "
             f"but randomized count implies {n_miss_e_gl_expected} missing participants."
         )
+
+    for arm, n_comp, n_miss, n_rand in [
+        ("Human", len(comp_h_gl), len(miss_h_gl), args.n_rand_human_gl),
+        ("EPS", len(comp_e_gl), len(miss_e_gl), args.n_rand_eps_gl),
+    ]:
+        total = n_comp + n_miss
+        mark = "OK" if total == n_rand else "WARNING"
+        print(f"GL {mark}: {arm} {n_comp}+{n_miss}={total} (target={n_rand})")
 
     df_itt_gl = pd.concat([comp_h_gl, comp_e_gl, miss_h_gl, miss_e_gl], ignore_index=True)
     df_itt_gl["group_num"] = (df_itt_gl["group"] == "EPS").astype(float)
@@ -733,6 +756,14 @@ def main():
     df_wl_diff = detail_df(tp_wl_diff)
     df_gl = detail_df(tp_gl_eps)
 
+    if "resampled_from_completers" in {source_h_wl, source_e_wl, source_h_gl, source_e_gl}:
+        missing_workflow = (
+            "Missing-baseline files were not supplied for at least one cohort, so the repository fallback "
+            "reconstructed those missing participants by within-arm resampling from completers."
+        )
+    else:
+        missing_workflow = "Supplied missing-baseline files were used as the real baseline records for non-completers."
+
     notes_rows = [
         {"Item": "Purpose", "Details": "Quantify how far missing data must deviate from MAR to nullify the EPS benefit"},
         {"Item": "Primary scenario", "Details": "Delta applied to missing EPS-arm outcomes only"},
@@ -753,6 +784,7 @@ def main():
             "Item": "Model alignment",
             "Details": "Covariates, naming, and MI settings match ITT_weight_loss.py and ITT_glycemic.py",
         },
+        {"Item": "Missing-baseline workflow", "Details": missing_workflow},
         {"Item": "Weight missing source (Human)", "Details": describe_source(source_h_wl)},
         {"Item": "Weight missing source (EPS)", "Details": describe_source(source_e_wl)},
         {"Item": "Glycemic missing source (Human)", "Details": describe_source(source_h_gl)},
