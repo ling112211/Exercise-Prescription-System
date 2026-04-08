@@ -119,13 +119,13 @@ Exercise-Prescription-System/
 | `clinical_trial/checkin_analysis/*.py` | Tagged-checkin linkage + exploratory/enhanced mediation | `data/example/checkin/` (**example only**) |
 | `questionnaire/participant_reported.py` | Fig. 6 | `data/example/` (**example only**) |
 | `Subgroup Forest Plot/*.py` | Extended Data Figs. 3-4 | `data/example/` (**example only**) |
-| `sensitivity_analysis/ITT_weight_loss.py` | Supplementary Table (ITT weight-loss) | `data/example/` (**example only**) |
-| `sensitivity_analysis/ITT_glycemic.py` | Supplementary Table (ITT glycemic) | `data/example/` (**example only**) |
-| `sensitivity_analysis/tipping_point_analysis.py` | Supplementary Table (tipping-point) | `data/example/` (**example only**) |
+| `sensitivity_analysis/ITT_weight_loss.py` | Supplementary Table (ITT weight-loss) | Controlled-access trial Excel files in `weight-loss/` and `sensitivity_analysis/weight loss missing data/` (**not bundled**) |
+| `sensitivity_analysis/ITT_glycemic.py` | Supplementary Table (ITT glycemic) | Controlled-access trial Excel files in `glycemic/` and `sensitivity_analysis/glycemic control missing data/` (**not bundled**) |
+| `sensitivity_analysis/tipping_point_analysis.py` | Supplementary Table (tipping-point) | Same controlled-access inputs as the two ITT scripts above (**not bundled**) |
 
 The example data under `data/example/` are anonymised synthetic files provided solely to verify that the code runs without errors. They do **not** reproduce the numerical results or figures reported in the paper. To obtain the real clinical trial data (weight-loss RCT, glycemic-control RCT, and questionnaire), please contact the corresponding author (see [Data Availability](#data-availability)).
 
-For the three `sensitivity_analysis/*.py` scripts, the paper-consistent workflow is to supply separate missing-participant baseline Excel files so non-completers use their actual baseline records. Those controlled missing-baseline files are **not** bundled in this repository. When no `--*_missing` arguments are supplied, the scripts fall back to within-arm resampling from completers so that the bundled example datasets still run end-to-end. If you have controlled-access real missing-baseline files, or you create your own synthetic missing-data examples, you can pass them via the optional `--weight_human_missing`, `--weight_eps_missing`, `--gly_human_missing`, and `--gly_eps_missing` arguments.
+For the three `sensitivity_analysis/*.py` scripts, the current implementation uses fixed input paths (no command-line data-path arguments). To run these scripts, you must place controlled-access trial Excel files in the expected `weight-loss/`, `glycemic/`, and `sensitivity_analysis/* missing data/` directories. These files are **not** bundled in this repository.
 
 For `clinical_trial/checkin_analysis/*.py`, the repository bundles synthetic participant workbooks and chat-export workbooks under `data/example/checkin/` so the tagged-message linkage plus exploratory/enhanced mediation workflows can be run end-to-end without controlled chat exports. These files are strictly for verification and do **not** reproduce any paper result.
 
@@ -265,54 +265,42 @@ python "Subgroup Forest Plot/glycemic control subgroup forest plot.py" \
 
 Performs Intention-to-Treat sensitivity analyses using multiple imputation (MICE under MAR) and baseline observation carried forward (BOCF). MNAR delta-adjustment and tipping-point sensitivity are handled separately in `tipping_point_analysis.py`. Results are saved as multi-sheet Excel workbooks.
 
-> **Note**: The commands below use the example data provided in `data/example/`. The outputs will **not** match the supplementary tables in the paper. Replace the paths and `--n_randomized_*` values with your real data once access has been granted.
-
-The reference workflow is to provide separate missing-baseline Excel files so the ITT population uses the actual baseline records for non-completers. Because those controlled files are not bundled here, the repository falls back to within-arm resampling when no `--*_missing` arguments are supplied. If you have the missing-baseline Excel files, add the optional `--weight_human_missing`, `--weight_eps_missing`, `--gly_human_missing`, and `--gly_eps_missing` arguments listed below.
+> **Note**: These three sensitivity-analysis scripts currently use fixed file paths and do not accept CLI data-path arguments. The required controlled-access input files are not bundled in this repository.
 
 ```bash
 # Weight-loss ITT sensitivity analysis
-python sensitivity_analysis/ITT_weight_loss.py \
-    --weight_human data/example/weight_loss/human_arm.xlsx \
-    --weight_eps   data/example/weight_loss/eps_arm.xlsx \
-    --n_randomized_human 100 --n_randomized_eps 100 \
-    --out_dir outputs/sensitivity_analysis
+python sensitivity_analysis/ITT_weight_loss.py
 
 # Glycemic-control ITT sensitivity analysis (exploratory)
-python sensitivity_analysis/ITT_glycemic.py \
-    --gly_human data/example/glycemic/human_arm.xlsx \
-    --gly_eps   data/example/glycemic/eps_arm.xlsx \
-    --n_randomized_human 50 --n_randomized_eps 50 \
-    --out_dir outputs/sensitivity_analysis
+python sensitivity_analysis/ITT_glycemic.py
 ```
 
-Optional missing-baseline flags (recommended when available):
-- Weight-loss ITT: `--weight_human_missing path/to/weight_human_missing.xlsx --weight_eps_missing path/to/weight_eps_missing.xlsx`
-- Glycemic ITT: `--gly_human_missing path/to/gly_human_missing.xlsx --gly_eps_missing path/to/gly_eps_missing.xlsx`
+Expected input file locations:
+- `weight-loss/Human weight-loss.xlsx`
+- `weight-loss/EPS-Human weight-loss.xlsx`
+- `glycemic/Human glycemic-control.xlsx`
+- `glycemic/EPS-Human glycemic-control.xlsx`
+- `sensitivity_analysis/weight loss missing data/weight loss human missing data.xlsx`
+- `sensitivity_analysis/weight loss missing data/weight loss EPS-human missing data.xlsx`
+- `sensitivity_analysis/glycemic control missing data/glycemic Human missing data.xlsx`
+- `sensitivity_analysis/glycemic control missing data/glycemic EPS-human missing data.xlsx`
+
+Fixed output files:
+- `sensitivity_analysis/ITT_weight_loss_results.xlsx`
+- `sensitivity_analysis/ITT_glycemic_results.xlsx`
 
 ### Tipping-Point Analysis (Supplementary Table)
 
 Determines how much worse missing outcomes in the EPS arm would need to be (relative to MAR imputation) before the treatment effect loses statistical significance.
 
-> **Note**: The commands below use the example data provided in `data/example/`. The outputs will **not** match the supplementary table in the paper. Replace the paths and `--n_rand_*` values with your real data once access has been granted.
-
-Like the ITT scripts above, `tipping_point_analysis.py` uses supplied missing-baseline Excel files when available and otherwise falls back to within-arm resampling so the bundled example data still run. For paper-consistent analyses, provide the optional missing-baseline arguments.
+> **Note**: `tipping_point_analysis.py` reads the same fixed input paths as the ITT scripts above and does not accept CLI data-path arguments.
 
 ```bash
-python sensitivity_analysis/tipping_point_analysis.py \
-    --weight_human data/example/weight_loss/human_arm.xlsx \
-    --weight_eps   data/example/weight_loss/eps_arm.xlsx \
-    --gly_human    data/example/glycemic/human_arm.xlsx \
-    --gly_eps      data/example/glycemic/eps_arm.xlsx \
-    --n_rand_human_wl 100 --n_rand_eps_wl 100 \
-    --n_rand_human_gl 50  --n_rand_eps_gl 50 \
-    --out_dir outputs/sensitivity_analysis
+python sensitivity_analysis/tipping_point_analysis.py
 ```
 
-Optional missing-baseline flags:
-- `--weight_human_missing path/to/weight_human_missing.xlsx`
-- `--weight_eps_missing path/to/weight_eps_missing.xlsx`
-- `--gly_human_missing path/to/gly_human_missing.xlsx`
-- `--gly_eps_missing path/to/gly_eps_missing.xlsx`
+Fixed output file:
+- `sensitivity_analysis/tipping_point_results.xlsx`
 
 ## Data Availability
 
@@ -325,8 +313,8 @@ This repository includes two categories of data:
 **Example data only (does not reproduce paper results):**
 - `data/example/` — anonymised synthetic datasets provided solely to verify that the analysis and plotting scripts run without errors. These files have the same format as the real data but contain different values. Outputs produced with these files will **not** match the tables and figures reported in the paper.
 
-**Not bundled in this repository (but accepted by the sensitivity-analysis scripts if you provide them):**
-- Missing-participant baseline Excel files for the weight-loss and glycemic-control ITT/tipping-point analyses. When these files are unavailable, the sensitivity-analysis scripts fall back to within-arm resampling so that the bundled example data still run.
+**Not bundled in this repository (required by the current sensitivity-analysis scripts):**
+- Controlled-access Excel files for weight-loss and glycemic-control completers and missing-participant baselines. These scripts currently expect those files at fixed paths under `weight-loss/`, `glycemic/`, and `sensitivity_analysis/* missing data/`.
 
 The real clinical trial data (weight-loss RCT: 1,444 participants; glycemic-control RCT: 40 participants; participant questionnaire) are available under controlled access due to patient privacy regulations. Researchers who wish to access the de-identified participant data for academic purposes may contact the corresponding author. Please see `data/README_data.md` for a full description of each dataset and the required file format.
 
