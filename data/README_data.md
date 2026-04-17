@@ -32,11 +32,11 @@ Exercise-Prescription-System/
 ├── data/
 │   ├── README_data.md                         # Data dictionary and access instructions
 │   ├── benchmark_results/
-│   │   └── benchmark_accuracy.csv             # Pre-computed benchmark accuracy (REAL DATA — reproduces Fig. 7)
+│   │   └── benchmark_accuracy.csv             # Pre-computed benchmark accuracy (REAL DATA — reproduces Fig. 5a)
 │   ├── expert_pilot/
-│   │   ├── base_model.csv                     # Expert ratings for base model (REAL DATA — reproduces Fig. 8)
-│   │   ├── eps_without_d2.csv                 # Expert ratings for base model + D1 (REAL DATA — reproduces Fig. 8)
-│   │   └── eps.csv                            # Expert ratings for full EPS (REAL DATA — reproduces Fig. 8)
+│   │   ├── base_model.csv                     # Expert ratings for base model (REAL DATA — reproduces Fig. 5b)
+│   │   ├── eps_without_d2.csv                 # Expert ratings for base model + D1 (REAL DATA — reproduces Fig. 5b)
+│   │   └── eps.csv                            # Expert ratings for full EPS (REAL DATA — reproduces Fig. 5b)
 │   └── example/                               # EXAMPLE DATA ONLY — for code verification, not paper results
 │       ├── checkin/
 │       │   ├── weight_loss/
@@ -61,20 +61,20 @@ Exercise-Prescription-System/
 │           └── eps_responses.xlsx
 ├── benchmark/
 │   ├── evaluate_benchmark.py                  # Benchmark model inference and 95% CI computation
-│   └── plot_benchmark.py                      # Benchmark accuracy bar chart (Fig. 7) from pre-computed CSV
+│   └── plot_benchmark.py                      # Benchmark accuracy bar chart (Fig. 5a) from pre-computed CSV
 ├── expert_pilot/
-│   └── plot_expert_evaluation.py              # Expert pilot summaries, Friedman/Wilcoxon tests, and grouped bar chart (Fig. 8)
+│   └── plot_expert_evaluation.py              # Expert pilot summaries, Friedman/Wilcoxon tests, and grouped bar chart (Fig. 5b)
 ├── clinical_trial/
-│   ├── baseline_characteristics.py            # Baseline demographics tables (Tables 1 and 2)
+│   ├── baseline_characteristics.py            # Baseline demographics tables (Table 1)
 │   ├── checkin_analysis/
 │   │   ├── generate_synthetic_checkin_data.py
 │   │   ├── build_checkin_dataset.py
 │   │   ├── feedback_mediation.py
 │   │   └── enhanced_feedback_mediation.py
-│   ├── weight_loss_analysis.py                # Weight-loss outcomes bar chart (Fig. 4)
-│   └── glycemic_control_analysis.py           # Fasting glucose outcomes bar chart (Fig. 5)
+│   ├── weight_loss_analysis.py                # Weight-loss outcomes bar chart (Fig. 3a)
+│   └── glycemic_control_analysis.py           # Fasting glucose outcomes bar chart (Fig. 3b)
 ├── questionnaire/
-│   └── participant_reported.py                # Participant-reported outcomes radar chart (Fig. 6)
+│   └── participant_reported.py                # Participant-reported outcomes radar chart (Fig. 4)
 ├── sensitivity_analysis/
 │   ├── ITT_weight_loss.py                     # ITT sensitivity analysis for weight-loss cohort (MI + BOCF)
 │   ├── ITT_glycemic.py                        # ITT sensitivity analysis for glycemic-control cohort (MI + BOCF)
@@ -111,17 +111,17 @@ Exercise-Prescription-System/
 
 | Script | Output | Data in this repo |
 |--------|--------|-------------------|
-| `benchmark/plot_benchmark.py` | Fig. 7 | `data/benchmark_results/benchmark_accuracy.csv` (**real**) |
-| `expert_pilot/plot_expert_evaluation.py` | Fig. 8 | `data/expert_pilot/*.csv` (**real**) |
-| `clinical_trial/baseline_characteristics.py` | Tables 1 & 2 | `data/example/` (**example only**) |
-| `clinical_trial/weight_loss_analysis.py` | Fig. 4 | `data/example/` (**example only**) |
-| `clinical_trial/glycemic_control_analysis.py` | Fig. 5 | `data/example/` (**example only**) |
-| `clinical_trial/checkin_analysis/*.py` | Tagged-checkin linkage + exploratory/enhanced mediation | `data/example/checkin/` (**example only**) |
-| `questionnaire/participant_reported.py` | Fig. 6 | `data/example/` (**example only**) |
-| `Subgroup Forest Plot/*.py` | Extended Data Figs. 3-4 | `data/example/` (**example only**) |
-| `sensitivity_analysis/ITT_weight_loss.py` | Supplementary Table (ITT weight-loss) | Controlled-access trial Excel files in `weight-loss/` and `sensitivity_analysis/weight loss missing data/` (**not bundled**) |
-| `sensitivity_analysis/ITT_glycemic.py` | Supplementary Table (ITT glycemic) | Controlled-access trial Excel files in `glycemic/` and `sensitivity_analysis/glycemic control missing data/` (**not bundled**) |
-| `sensitivity_analysis/tipping_point_analysis.py` | Supplementary Table (tipping-point) | Same controlled-access inputs as the two ITT scripts above (**not bundled**) |
+| `benchmark/plot_benchmark.py` | Fig. 5a | `data/benchmark_results/benchmark_accuracy.csv` (**real**) |
+| `expert_pilot/plot_expert_evaluation.py` | Fig. 5b | `data/expert_pilot/*.csv` (**real**) |
+| `clinical_trial/baseline_characteristics.py` | Table 1 | `data/example/` (**example only**) |
+| `clinical_trial/weight_loss_analysis.py` | Fig. 3a | `data/example/` (**example only**) |
+| `clinical_trial/glycemic_control_analysis.py` | Fig. 3b | `data/example/` (**example only**) |
+| `clinical_trial/checkin_analysis/*.py` | Tagged-checkin linkage + Supplementary Table 3 mediation outputs | `data/example/checkin/` (**example only**) |
+| `questionnaire/participant_reported.py` | Fig. 4 | `data/example/` (**example only**) |
+| `Subgroup Forest Plot/*.py` | Extended Data Figs. 1-2 | `data/example/` (**example only**) |
+| `sensitivity_analysis/ITT_weight_loss.py` | Supplementary Table 1 (ITT weight-loss) | Controlled-access trial Excel files in `weight-loss/` and `sensitivity_analysis/weight loss missing data/` (**not bundled**) |
+| `sensitivity_analysis/ITT_glycemic.py` | Supplementary Table 2 (ITT glycemic) | Controlled-access trial Excel files in `glycemic/` and `sensitivity_analysis/glycemic control missing data/` (**not bundled**) |
+| `sensitivity_analysis/tipping_point_analysis.py` | Supplementary Tables 1-2 (tipping-point rows) | Same controlled-access inputs as the two ITT scripts above (**not bundled**) |
 
 The example data under `data/example/` are anonymised synthetic files provided solely to verify that the code runs without errors. They do **not** reproduce the numerical results or figures reported in the paper. To obtain the real clinical trial data (weight-loss RCT, glycemic-control RCT, and questionnaire), please contact the corresponding author (see [Data Availability](#data-availability)).
 
@@ -133,9 +133,9 @@ For `clinical_trial/checkin_analysis/*.py`, the repository bundles synthetic par
 
 All scripts are run from the repository root. Data files must first be obtained (see [Data Availability](#data-availability)).
 
-### Benchmark Evaluation (Fig. 7)
+### Benchmark Evaluation (Fig. 5a)
 
-Fig. 7 is produced in two steps: (1) running model inference to compute accuracy scores and export the plotting CSV, and (2) plotting the results from the saved CSV. If you only want to reproduce the figure from the pre-computed results, skip to Step 2.
+Fig. 5a is produced in two steps: (1) running model inference to compute accuracy scores and export the plotting CSV, and (2) plotting the results from the saved CSV. If you only want to reproduce the figure from the pre-computed results, skip to Step 2.
 
 **Step 1 — Run model inference** (requires GPU; skip if using pre-computed CSV)
 
@@ -156,7 +156,7 @@ Before running, update the model path placeholders in `benchmark/evaluate_benchm
 
 **Step 2 — Plot the bar chart from pre-computed CSV**
 
-A pre-computed accuracy CSV is provided at `data/benchmark_results/benchmark_accuracy.csv`. Use `plot_benchmark.py` to generate Fig. 7 directly without re-running inference:
+A pre-computed accuracy CSV is provided at `data/benchmark_results/benchmark_accuracy.csv`. Use `plot_benchmark.py` to generate Fig. 5a directly without re-running inference:
 
 ```bash
 python benchmark/plot_benchmark.py \
@@ -166,9 +166,9 @@ python benchmark/plot_benchmark.py \
 
 Both `--input` and `--outdir` have the above defaults and may be omitted when running from the repository root.
 
-### Expert Pilot Evaluation (Fig. 8)
+### Expert Pilot Evaluation (Fig. 5b)
 
-Computes descriptive mean scores with two-sided 95% t-based confidence intervals, runs Friedman omnibus tests with Holm adjustment across the seven dimensions, runs paired Wilcoxon signed-rank tests for the three prespecified pairwise comparisons, and generates the grouped bar chart for Fig. 8.
+Computes descriptive mean scores with two-sided 95% t-based confidence intervals, runs Friedman omnibus tests with Holm adjustment across the seven dimensions, runs paired Wilcoxon signed-rank tests for the three prespecified pairwise comparisons, and generates the grouped bar chart for Fig. 5b.
 
 ```bash
 python expert_pilot/plot_expert_evaluation.py \
@@ -184,13 +184,13 @@ The script writes the following files to the output directory:
 - `<prefix>_aligned_scores.csv` — the paired analysis table after aligning raters across the three files.
 - `<prefix>_friedman_tests.csv` — omnibus Friedman test results with Holm adjustment across the seven dimensions.
 - `<prefix>_wilcoxon_pairwise_tests.csv` — paired Wilcoxon results with raw P values plus two Holm-adjusted columns: `p_holm_3pairs_within_dimension` (the manuscript reporting column) and `p_holm_7dims_within_comparison` (exported for transparency).
-- `<prefix>_bar_mean_ci.pdf` and `<prefix>_bar_mean_ci.png` — the grouped bar chart used for Fig. 8.
+- `<prefix>_bar_mean_ci.pdf` and `<prefix>_bar_mean_ci.png` — the grouped bar chart used for Fig. 5b.
 
-### Baseline Characteristics (Tables 1 and 2)
+### Baseline Characteristics (Table 1)
 
 Generates the demographic comparison tables for both trial cohorts.
 
-> **Note**: The commands below use the example data provided in `data/example/`. The outputs will **not** match Tables 1 and 2 in the paper. Replace the paths with your real data files once access has been granted.
+> **Note**: The commands below use the example data provided in `data/example/`. The outputs will **not** match Table 1 in the paper. Replace the paths with your real data files once access has been granted.
 
 ```bash
 python clinical_trial/baseline_characteristics.py \
@@ -201,11 +201,11 @@ python clinical_trial/baseline_characteristics.py \
     --out_dir      outputs/clinical_trial
 ```
 
-### Weight-Loss Outcomes (Fig. 4)
+### Weight-Loss Outcomes (Fig. 3a)
 
 Computes Welch *t*-test statistics and Clopper–Pearson confidence intervals, then generates the three-panel bar chart.
 
-> **Note**: The commands below use the example data provided in `data/example/`. The outputs will **not** match Fig. 4 in the paper. Replace the paths with your real data files once access has been granted.
+> **Note**: The commands below use the example data provided in `data/example/`. The outputs will **not** match Fig. 3a in the paper. Replace the paths with your real data files once access has been granted.
 
 ```bash
 python clinical_trial/weight_loss_analysis.py \
@@ -214,11 +214,11 @@ python clinical_trial/weight_loss_analysis.py \
     --out_dir      outputs/clinical_trial
 ```
 
-### Glycemic-Control Outcomes (Fig. 5)
+### Glycemic-Control Outcomes (Fig. 3b)
 
 Computes fasting glucose reduction statistics and generates the two-panel bar chart.
 
-> **Note**: The commands below use the example data provided in `data/example/`. The outputs will **not** match Fig. 5 in the paper. Replace the paths with your real data files once access has been granted.
+> **Note**: The commands below use the example data provided in `data/example/`. The outputs will **not** match Fig. 3b in the paper. Replace the paths with your real data files once access has been granted.
 
 ```bash
 python clinical_trial/glycemic_control_analysis.py \
@@ -227,11 +227,11 @@ python clinical_trial/glycemic_control_analysis.py \
     --out_dir   outputs/clinical_trial
 ```
 
-### Participant-Reported Outcomes (Fig. 6)
+### Participant-Reported Outcomes (Fig. 4)
 
 Applies quality-control filters (Q1 screening, completion-time filter, straight-lining detection) and generates the radar chart with 95% confidence intervals.
 
-> **Note**: The commands below use the example data provided in `data/example/`. The outputs will **not** match Fig. 6 in the paper. Replace the paths with your real data files once access has been granted.
+> **Note**: The commands below use the example data provided in `data/example/`. The outputs will **not** match Fig. 4 in the paper. Replace the paths with your real data files once access has been granted.
 
 ```bash
 python questionnaire/participant_reported.py \
@@ -240,9 +240,9 @@ python questionnaire/participant_reported.py \
     --outdir     outputs/questionnaire
 ```
 
-### Subgroup Forest Plots (Extended Data Figs. 3 and 4)
+### Subgroup Forest Plots (Extended Data Figs. 1 and 2)
 
-> **Note**: The commands below use the example data provided in `data/example/`. The outputs will **not** match Extended Data Figs. 3 and 4 in the paper. Replace the paths with your real data files once access has been granted.
+> **Note**: The commands below use the example data provided in `data/example/`. The outputs will **not** match Extended Data Figs. 1 and 2 in the paper. Replace the paths with your real data files once access has been granted.
 
 ```bash
 # Weight-loss subgroup analysis
@@ -261,7 +261,7 @@ python "Subgroup Forest Plot/glycemic control subgroup forest plot.py" \
     --out_pdf   outputs/subgroup/glycemic_subgroup.pdf
 ```
 
-### ITT Sensitivity Analysis (Supplementary Tables)
+### ITT Sensitivity Analysis (Supplementary Tables 1 and 2)
 
 Performs Intention-to-Treat sensitivity analyses using multiple imputation (MICE under MAR) and baseline observation carried forward (BOCF). MNAR delta-adjustment and tipping-point sensitivity are handled separately in `tipping_point_analysis.py`. Results are saved as multi-sheet Excel workbooks.
 
@@ -289,7 +289,7 @@ Fixed output files:
 - `sensitivity_analysis/ITT_weight_loss_results.xlsx`
 - `sensitivity_analysis/ITT_glycemic_results.xlsx`
 
-### Tipping-Point Analysis (Supplementary Table)
+### Tipping-Point Analysis (Supplementary Tables 1 and 2)
 
 Determines how much worse missing outcomes in the EPS arm would need to be (relative to MAR imputation) before the treatment effect loses statistical significance.
 
@@ -307,8 +307,8 @@ Fixed output file:
 This repository includes two categories of data:
 
 **Fully available (real data, reproduces paper results):**
-- `data/benchmark_results/benchmark_accuracy.csv` — pre-computed benchmark accuracy scores used to generate Fig. 7.
-- `data/expert_pilot/` — expert ratings from the 25-person pilot study used to generate Fig. 8.
+- `data/benchmark_results/benchmark_accuracy.csv` — pre-computed benchmark accuracy scores used to generate Fig. 5a.
+- `data/expert_pilot/` — expert ratings from the 25-person pilot study used to generate Fig. 5b.
 
 **Example data only (does not reproduce paper results):**
 - `data/example/` — anonymised synthetic datasets provided solely to verify that the analysis and plotting scripts run without errors. These files have the same format as the real data but contain different values. Outputs produced with these files will **not** match the tables and figures reported in the paper.

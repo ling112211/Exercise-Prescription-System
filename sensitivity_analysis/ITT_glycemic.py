@@ -1,7 +1,8 @@
 """
 ITT Sensitivity Analysis — Glycemic Control Cohort (Exploratory)
 =================================================================
-Positioning:  EXPLORATORY supplementary sensitivity analysis.
+Positioning:  EXPLORATORY supplementary sensitivity analysis reported in
+              Supplementary Table 2.
               Glycemic cohort is small (24/24 randomized, 21/19 completers).
               Results should be presented in supplementary material only.
 
