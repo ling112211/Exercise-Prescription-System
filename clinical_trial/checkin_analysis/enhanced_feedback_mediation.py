@@ -1923,7 +1923,10 @@ def derive_output_paths(outdir: Path, cohort: str) -> dict[str, Path]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run the enhanced checkin mediation workflow with interaction, matching, latency, and quality-index analyses."
+        description=(
+            "Run the enhanced checkin mediation workflow for Supplementary Table 3 "
+            "with interaction, matching, latency, and quality-index analyses."
+        )
     )
     parser.add_argument("--cohort", choices=sorted(COHORT_CONFIGS), required=True, help="Clinical-trial cohort.")
     parser.add_argument("--human-file", type=Path, required=True, help="Human-arm workbook augmented with tagged-message counts.")

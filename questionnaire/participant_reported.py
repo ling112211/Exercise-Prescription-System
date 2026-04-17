@@ -453,7 +453,7 @@ def radar_plot_with_ci(
 # CLI
 # =========================
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Participant-reported outcomes (Fig. 6) analysis and radar plot.")
+    p = argparse.ArgumentParser(description="Participant-reported outcomes (Fig. 4) analysis and radar plot.")
     p.add_argument("--human-xlsx", type=str, required=True, help="Path to Human summary.xlsx")
     p.add_argument("--eps-xlsx", type=str, required=True, help="Path to EPS-human clean_responses.xlsx")
     p.add_argument("--sheet", type=str, default="0", help="Excel sheet name or index (default: 0)")

@@ -286,7 +286,7 @@ def build_table_glycemic(df_h: pd.DataFrame, df_e: pd.DataFrame) -> pd.DataFrame
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Baseline characteristics (Tables 1 and 2).")
+    p = argparse.ArgumentParser(description="Baseline characteristics (Table 1).")
     p.add_argument("--weight_human", type=str, default=None, help="Path to Human weight-loss Excel.")
     p.add_argument("--weight_eps", type=str, default=None, help="Path to EPS-human weight-loss Excel.")
     p.add_argument("--gly_human", type=str, default=None, help="Path to Human glycemic-control Excel.")
@@ -314,18 +314,18 @@ def main() -> None:
     df_g_h = read_excel(g_h)
     df_g_e = read_excel(g_e)
 
-    table1 = build_table_weight_loss(df_w_h, df_w_e)
-    table2 = build_table_glycemic(df_g_h, df_g_e)
+    weight_table = build_table_weight_loss(df_w_h, df_w_e)
+    glycemic_table = build_table_glycemic(df_g_h, df_g_e)
 
     out_xlsx = out_dir / "baseline_characteristics_tables.xlsx"
     ensure_parent_dir(out_xlsx)
 
     with pd.ExcelWriter(out_xlsx, engine="openpyxl") as writer:
-        table1.to_excel(writer, index=False, sheet_name="Table1_weight_loss")
-        table2.to_excel(writer, index=False, sheet_name="Table2_glycemic")
+        weight_table.to_excel(writer, index=False, sheet_name="Table1_weight_loss")
+        glycemic_table.to_excel(writer, index=False, sheet_name="Table1_glycemic")
 
-    table1.to_csv(out_dir / "Table1_weight_loss.csv", index=False)
-    table2.to_csv(out_dir / "Table2_glycemic.csv", index=False)
+    weight_table.to_csv(out_dir / "Table1_weight_loss.csv", index=False)
+    glycemic_table.to_csv(out_dir / "Table1_glycemic.csv", index=False)
 
 
 if __name__ == "__main__":

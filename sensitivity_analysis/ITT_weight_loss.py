@@ -1,7 +1,8 @@
 """
 ITT Sensitivity Analysis — Weight Loss Cohort
 =================================================================
-Positioning:  Primary ITT sensitivity analysis for the weight-loss cohort.
+Positioning:  Primary ITT sensitivity analysis for the weight-loss cohort
+              reported in Supplementary Table 1.
 
 Population:   790 randomized per arm.
               Completers: Human=702, EPS=742.

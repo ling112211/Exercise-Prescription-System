@@ -363,7 +363,7 @@ def read_excel_clean(path: Path) -> pd.DataFrame:
 # Main
 # =========================
 def main():
-    parser = argparse.ArgumentParser(description="Glycemic-control subgroup forest plot (Extended Data Fig. 4; fasting glucose reduction).")
+    parser = argparse.ArgumentParser(description="Glycemic-control subgroup forest plot (Extended Data Fig. 2; fasting glucose reduction).")
     parser.add_argument("--eps", required=True, type=str, help="Path to EPS-human arm Excel file.")
     parser.add_argument("--human", required=True, type=str, help="Path to Human arm Excel file.")
     parser.add_argument("--out_table", required=True, type=str, help="Output Excel path for subgroup table.")
