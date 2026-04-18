@@ -92,8 +92,8 @@ Exercise-Prescription-System/
 │   ├── checkin_analysis/
 │   │   ├── generate_synthetic_checkin_data.py # Creates synthetic participant/chat workbooks for verification
 │   │   ├── build_checkin_dataset.py           # Links tagged chat messages to participants and appends count columns
-│   │   ├── feedback_mediation.py              # Exploratory mediation analysis using actual feedback counts
-│   │   └── enhanced_feedback_mediation.py     # Four-module enhanced mediation using counts, latency, and text quality
+│   │   ├── feedback_mediation.py              # Legacy exploratory count-mediation script; not used for the updated article logic
+│   │   └── enhanced_feedback_mediation.py     # Frequency-control, content-audit, and latency analysis for Supplementary Table 3
 │   ├── weight_loss_analysis.py                # Weight-loss outcomes bar chart (Fig. 3a)
 │   └── glycemic_control_analysis.py           # Fasting glucose outcomes bar chart (Fig. 3b)
 ├── questionnaire/
@@ -139,7 +139,7 @@ Exercise-Prescription-System/
 | `clinical_trial/baseline_characteristics.py` | Table 1 | `data/example/` (**example only**) |
 | `clinical_trial/weight_loss_analysis.py` | Fig. 3a | `data/example/` (**example only**) |
 | `clinical_trial/glycemic_control_analysis.py` | Fig. 3b | `data/example/` (**example only**) |
-| `clinical_trial/checkin_analysis/*.py` | Tagged-checkin linkage + Supplementary Table 3 mediation outputs | `data/example/checkin/` (**example only**) |
+| `clinical_trial/checkin_analysis/*.py` | Tagged-checkin linkage + Supplementary Table 3 frequency-control/content-audit outputs | `data/example/checkin/` (**example only**) |
 | `questionnaire/participant_reported.py` | Fig. 4 | `data/example/` (**example only**) |
 | `Subgroup Forest Plot/*.py` | Extended Data Figs. 1-2 | `data/example/` (**example only**) |
 | `sensitivity_analysis/ITT_weight_loss.py` | Supplementary Table 1 (ITT weight-loss) | Controlled-access trial Excel files in `weight-loss/` and `sensitivity_analysis/weight loss missing data/` (**not bundled**) |
@@ -150,7 +150,7 @@ The example data under `data/example/` are anonymised synthetic files provided s
 
 For the three `sensitivity_analysis/*.py` scripts, the current implementation uses fixed input paths (no command-line data-path arguments). To run these scripts, you must place controlled-access trial Excel files in the expected `weight-loss/`, `glycemic/`, and `sensitivity_analysis/* missing data/` directories. These files are **not** bundled in this repository.
 
-For `clinical_trial/checkin_analysis/*.py`, the repository bundles fully synthetic participant workbooks and chat-export workbooks under `data/example/checkin/`. These files are provided solely so that the tagged-message linkage plus exploratory/enhanced mediation workflows can be executed end-to-end without access to controlled trial chat exports. They do **not** correspond to the paper's real trial messages or mediation estimates.
+For `clinical_trial/checkin_analysis/*.py`, the repository bundles fully synthetic participant workbooks and chat-export workbooks under `data/example/checkin/`. These files are provided solely so that the tagged-message linkage plus frequency-control/content-audit workflow can be executed end-to-end without access to controlled trial chat exports. They do **not** correspond to the paper's real trial messages or estimates.
 
 ## How to Reproduce the Results
 
@@ -250,11 +250,11 @@ python clinical_trial/glycemic_control_analysis.py \
     --out_dir   outputs/clinical_trial
 ```
 
-### Tagged Check-In Linkage, Exploratory Mediation, And Enhanced Mediation (Supplementary Table 3)
+### Tagged Check-In Linkage And Frequency-Control/Content-Audit Analysis (Supplementary Table 3)
 
-Builds actual feedback counts from chat-export workbooks using keyword matching plus participant linking, then supports both the original exploratory mediation analysis and a four-module enhanced mediation workflow.
+Builds actual feedback counts from chat-export workbooks using keyword matching plus participant linking, then runs the updated Supplementary Table 3 workflow: interaction/dose-response models, nearest-neighbour matching on feedback count, message-level feedback-content audit, and response-latency descriptive statistics.
 
-`clinical_trial/checkin_analysis/enhanced_feedback_mediation.py` consolidates the previously separate weight-loss and glycemic enhanced mediation scripts into one cohort-driven entrypoint that matches the repository structure.
+`clinical_trial/checkin_analysis/enhanced_feedback_mediation.py` is the current entrypoint for this workflow. Despite the historical filename, it does not run a formal causal mediation model; the content audit is construct-validity evidence for individualized exercise prescription.
 
 > **Note**: The commands below use the synthetic example data provided in `data/example/checkin/`. The outputs verify that the code runs, but they do **not** reproduce any paper figure or estimate.
 
@@ -273,14 +273,14 @@ python clinical_trial/checkin_analysis/build_checkin_dataset.py \
     --main-file data/example/checkin/weight_loss/human_arm.xlsx \
     --chat-file data/example/checkin/weight_loss/human_chat_history.xlsx \
     --output-file outputs/checkin_analysis/weight_loss/human_checkin.xlsx \
-    --keyword "#daily_activity_checkin" \
-    --new-column-title daily_activity_checkin_count
+    --keyword "#exercise feedback" \
+    --new-column-title exercise_feedback_count
 
 python clinical_trial/checkin_analysis/build_checkin_dataset.py \
     --main-file data/example/checkin/weight_loss/eps_arm.xlsx \
     --chat-file data/example/checkin/weight_loss/eps_chat_history.xlsx \
     --output-file outputs/checkin_analysis/weight_loss/eps_checkin.xlsx \
-    --keyword "#exercise_feedback" \
+    --keyword "#exercise feedback" \
     --new-column-title exercise_feedback_count
 
 # Glycemic-control cohort
@@ -288,14 +288,14 @@ python clinical_trial/checkin_analysis/build_checkin_dataset.py \
     --main-file data/example/checkin/glycemic/human_arm.xlsx \
     --chat-file data/example/checkin/glycemic/human_chat_history.xlsx \
     --output-file outputs/checkin_analysis/glycemic/human_checkin.xlsx \
-    --keyword "#daily_activity_checkin" \
-    --new-column-title daily_activity_checkin_count
+    --keyword "#exercise feedback" \
+    --new-column-title exercise_feedback_count
 
 python clinical_trial/checkin_analysis/build_checkin_dataset.py \
     --main-file data/example/checkin/glycemic/eps_arm.xlsx \
     --chat-file data/example/checkin/glycemic/eps_chat_history.xlsx \
     --output-file outputs/checkin_analysis/glycemic/eps_checkin.xlsx \
-    --keyword "#exercise_feedback" \
+    --keyword "#exercise feedback" \
     --new-column-title exercise_feedback_count
 ```
 
@@ -303,33 +303,7 @@ Each run writes:
 - An augmented workbook with an actual feedback-count column reconstructed from chat history.
 - A JSON linkage report summarizing matched, unresolved, and ambiguous tagged messages.
 
-**Step 3 — Run the exploratory mediation analyses**
-
-```bash
-python clinical_trial/checkin_analysis/feedback_mediation.py \
-    --cohort weight_loss \
-    --human-file outputs/checkin_analysis/weight_loss/human_checkin.xlsx \
-    --eps-file outputs/checkin_analysis/weight_loss/eps_checkin.xlsx \
-    --human-report outputs/checkin_analysis/weight_loss/human_checkin_report.json \
-    --eps-report outputs/checkin_analysis/weight_loss/eps_checkin_report.json \
-    --outdir outputs/checkin_analysis/weight_loss
-
-python clinical_trial/checkin_analysis/feedback_mediation.py \
-    --cohort glycemic \
-    --human-file outputs/checkin_analysis/glycemic/human_checkin.xlsx \
-    --eps-file outputs/checkin_analysis/glycemic/eps_checkin.xlsx \
-    --human-report outputs/checkin_analysis/glycemic/human_checkin_report.json \
-    --eps-report outputs/checkin_analysis/glycemic/eps_checkin_report.json \
-    --outdir outputs/checkin_analysis/glycemic
-```
-
-The mediation script writes four output files per cohort:
-- `<cohort>_feedback_mediation_summary.json` — machine-readable summary and diagnostics.
-- `<cohort>_feedback_mediation_report.md` — human-readable memo.
-- `<cohort>_feedback_mediation_results.xlsx` — diagnostics, participant dataset, and model tables.
-- `<cohort>_feedback_mediation_plot.png` — dose-response and bootstrap plots.
-
-**Step 4 — Run the enhanced mediation analyses**
+**Step 3 — Run the frequency-control/content-audit analyses**
 
 ```bash
 python clinical_trial/checkin_analysis/enhanced_feedback_mediation.py \
@@ -340,6 +314,10 @@ python clinical_trial/checkin_analysis/enhanced_feedback_mediation.py \
     --eps-report outputs/checkin_analysis/weight_loss/eps_checkin_report.json \
     --human-chat-file data/example/checkin/weight_loss/human_chat_history.xlsx \
     --eps-chat-file data/example/checkin/weight_loss/eps_chat_history.xlsx \
+    --human-count-column exercise_feedback_count \
+    --eps-count-column exercise_feedback_count \
+    --human-keyword "#exercise feedback" \
+    --eps-keyword "#exercise feedback" \
     --outdir outputs/checkin_analysis/weight_loss
 
 python clinical_trial/checkin_analysis/enhanced_feedback_mediation.py \
@@ -350,16 +328,20 @@ python clinical_trial/checkin_analysis/enhanced_feedback_mediation.py \
     --eps-report outputs/checkin_analysis/glycemic/eps_checkin_report.json \
     --human-chat-file data/example/checkin/glycemic/human_chat_history.xlsx \
     --eps-chat-file data/example/checkin/glycemic/eps_chat_history.xlsx \
+    --human-count-column exercise_feedback_count \
+    --eps-count-column exercise_feedback_count \
+    --human-keyword "#exercise feedback" \
+    --eps-keyword "#exercise feedback" \
     --outdir outputs/checkin_analysis/glycemic
 ```
 
-The enhanced mediation script writes four additional output files per cohort. The weight-loss enhanced mediation outputs correspond to Supplementary Table 3:
-- `<cohort>_enhanced_feedback_mediation_summary.json` — machine-readable summary for the four modules.
-- `<cohort>_enhanced_feedback_mediation_report.md` — human-readable memo covering interaction, matching, latency, and quality-index results.
-- `<cohort>_enhanced_feedback_mediation_results.xlsx` — workbook with diagnostics, participant features, descriptives, and one sheet per module.
-- `<cohort>_enhanced_feedback_mediation_plot.png` — six-panel summary plot for dose-response, latency, and quality effects.
+The frequency-control/content-audit script writes four output files per cohort. The weight-loss outputs correspond to Supplementary Table 3:
+- `<cohort>_frequency_control_content_audit_summary.json` — machine-readable summary for Panels A-D.
+- `<cohort>_frequency_control_content_audit_report.md` — human-readable memo covering interaction, matching, content audit, and latency.
+- `<cohort>_frequency_control_content_audit_results.xlsx` — workbook with diagnostics, participant features, descriptives, and one sheet per panel.
+- `<cohort>_frequency_control_content_audit_plot.png` — summary plot for dose-response, frequency, content features, and latency when Matplotlib is available.
 
-By default, the enhanced script assumes the synthetic example keywords `#daily_activity_checkin` and `#exercise_feedback`. If you run it on the real Chinese chat exports, pass `--human-keyword "#日常活动打卡"` and `--eps-keyword "#运动点评"` as needed.
+The synthetic example uses one neutral tag, `#exercise feedback`, in both arms. By default, the analysis script still assumes the article keywords `#日常活动打卡` and `#运动点评`, so the synthetic commands pass keyword overrides explicitly.
 
 ### Participant-Reported Outcomes (Fig. 4)
 

@@ -328,7 +328,7 @@ def main() -> None:
         build_chat_rows(
             participants=weight_human_manifest,
             cohort="weight_loss",
-            keyword="#daily_activity_checkin",
+            keyword="#exercise feedback",
             arm_label="HumanCoach",
             coach_name="Coach Li",
             start_day=1,
@@ -340,7 +340,7 @@ def main() -> None:
         build_chat_rows(
             participants=weight_eps_manifest,
             cohort="weight_loss",
-            keyword="#exercise_feedback",
+            keyword="#exercise feedback",
             arm_label="EPSCoach",
             coach_name="Coach Sun",
             start_day=10,
@@ -352,7 +352,7 @@ def main() -> None:
         build_chat_rows(
             participants=gly_human_manifest,
             cohort="glycemic",
-            keyword="#daily_activity_checkin",
+            keyword="#exercise feedback",
             arm_label="HumanCoach",
             coach_name="Coach Wu",
             start_day=1,
@@ -364,7 +364,7 @@ def main() -> None:
         build_chat_rows(
             participants=gly_eps_manifest,
             cohort="glycemic",
-            keyword="#exercise_feedback",
+            keyword="#exercise feedback",
             arm_label="EPSCoach",
             coach_name="Coach Zhao",
             start_day=10,
