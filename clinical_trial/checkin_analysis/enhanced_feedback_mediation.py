@@ -28,7 +28,7 @@ USER_COLUMNS = ["user_nickname", "participant_nickname", "用户昵称"]
 AGE_COLUMNS = ["age", "年龄"]
 SEX_COLUMNS = ["sex", "gender", "性别"]
 BMI_COLUMNS = ["BMI", "bmi", "体重指数"]
-HUMAN_COUNT_COLUMNS = ["daily_activity_checkin_count", "包含#日常活动打卡消息总数"]
+HUMAN_COUNT_COLUMNS = ["daily_activity_checkin_count", "exercise_feedback_count", "包含#日常活动打卡消息总数"]
 EPS_COUNT_COLUMNS = ["exercise_feedback_count", "包含#运动点评消息总数"]
 
 WEIGHT_BASELINE_COLUMNS = ["baseline_weight_kg", "baseline_weight", "weight_baseline", "入营体重", "入营体重kg", "入营体重（档案）", "入营体重（档案） "]
@@ -59,34 +59,63 @@ SPACE_TRANSLATION = str.maketrans({char: " " for char in INVISIBLE_SPACES})
 QUOTE_TRANSLATION = str.maketrans({"“": '"', "”": '"', "‘": "'", "’": "'", "\u201c": '"', "\u201d": '"', "\u2018": "'", "\u2019": "'"})
 SCORE_SUFFIX_RE = re.compile(r"[\s+\-_.～~一—]*\d+(?:[.．]\d+)?(?:[\s+\-_.～~一—]*\d+(?:[.．]\d+)?)*$")
 
+# The keyword dictionaries below are intentionally tied to the observed feedback
+# segments. Human-arm records can bundle exercise feedback with weight and meal
+# comments, so quality coding first isolates the requested feedback hashtag
+# segment before scoring these features.
 EXERCISE_PARAM_RE = re.compile(
-    r"心率|步数|卡路里|千卡|时长|强度|配速|bpm|有氧|无氧|目标心率|运动时间|"
-    r"高强度|中强度|低强度|热身|拉伸|休息日|训练量|持续时间|运动量|"
-    r"减重|减肥|体重管理|体重控制|体重下降|超重|肥胖|减脂|体脂|"
-    r"运动处方|运动干预|运动治疗|生活方式干预|行为干预|"
-    r"抗阻训练|力量训练|高强度间歇|HIIT|健身|"
-    r"步行|散步|快走|慢跑|跑步|游泳|骑行|骑车|瑜伽|"
-    r"热量消耗|能量消耗|代谢当量|MET|新陈代谢|代谢率|脂肪燃烧|热量缺口|"
-    r"血糖|餐后|空腹|降糖|控糖|餐前|胰岛素|糖化|"
-    r"steps?|step count|walk(?:ing)?|run(?:ning)?|jog(?:ging)?|cycling|bike|yoga|stretch(?:ing)?|"
-    r"calories?|pace|duration|minutes?|heart rate|glucose|fasting|postprandial|meal|dinner",
+    r"心率|次/分钟|分钟|小时|公里|千米|米|步|步数|卡路里|千卡|热量|消耗|"
+    r"MET|强度|综合评分|评分|时长|配速|速度|距离|运动时间|有氧|无氧|"
+    r"耐力|力量训练|抗阻|拉伸|热身|训练量|运动量|跑步|慢跑|快走|"
+    r"步行|散步|游泳|骑行|瑜伽|HIIT|"
+    r"steps?|step count|walk(?:ing)?|run(?:ning)?|jog(?:ging)?|cycling|bike|yoga|"
+    r"stretch(?:ing)?|calories?|pace|duration|minutes?|heart rate|intensity",
     re.IGNORECASE,
 )
 PERSONALISE_RE = re.compile(
-    r"根据你|结合你|针对你|你的情况|你目前|你这周|上次|上一次|这次你|最近你|你上次|"
+    r"根据.{0,12}(运动记录|打卡|记录|数据)|"
+    r"结合.{0,12}(主观感受|心率|情况|记录|数据)|"
+    r"您在本次|你在本次|本次运动|您的运动记录|你的运动记录|"
+    r"从数据来看|针对你|针对您|你的情况|您的情况|你目前|您目前|"
+    r"上次|上一次|最近你|最近您|你上次|您上次|"
     r"based on your|for you|your current|your recent|last time|last week|this week|today you",
     re.IGNORECASE,
 )
 ADVICE_RE = re.compile(
-    r"建议|可以尝试|推荐|注意|下次|下周|调整|增加|减少|保持|坚持|配合|结合|"
+    r"建议|可以尝试|推荐|注意|下次|下周|调整|增加|减少|降低|提高|"
+    r"适当|安排|尝试|补充水分|休息|拉伸|热身|控制|避免|循序渐进|"
     r"suggest|recommend|try|adjust|increase|decrease|keep|continue|consider|aim for",
     re.IGNORECASE,
 )
-POSITIVE_RE = re.compile(
-    r"加油|太棒|很棒|不错|赞|厉害|棒棒|做得好|辛苦了|非常好|太好了|进步|"
+ENCOURAGEMENT_RE = re.compile(
+    r"加油|太棒|非常棒|很棒|不错|赞|厉害|棒棒|做得好|辛苦了|"
+    r"非常好|太好了|进步|优秀|继续保持|值得认可|佩服|出色|满分|坚持|"
     r"great|nice job|well done|excellent|good work|keep it up|awesome|amazing",
     re.IGNORECASE,
 )
+GOAL_PLAN_RE = re.compile(
+    r"目标|计划|每周|每次|下次|安排|逐渐|持续|坚持|习惯|实现|达到|"
+    r"减脂|减肥|体重管理|心肺功能|耐力|力量训练|运动量|训练|冲刺|挑战|"
+    r"goal|plan|routine|weekly|next session|next week|habit|target",
+    re.IGNORECASE,
+)
+DATA_REFERENCE_RE = re.compile(
+    r"根据您的运动记录|根据你的运动记录|从数据来看|结合您的主观感受|"
+    r"结合你的主观感受|主观感受|平均心率|心率百分比|本次消耗|"
+    r"综合评分|评分为|相当于|进行了|运动记录|数据来看|记录显示|运动表现|"
+    r"record shows|your data|based on.*record|average heart rate|calories burned",
+    re.IGNORECASE,
+)
+POSITIVE_RE = ENCOURAGEMENT_RE
+
+QUALITY_BINARY_FEATURES: list[tuple[str, str]] = [
+    ("has_personalisation", "Personalisation"),
+    ("has_exercise_params", "Exercise parameters"),
+    ("has_advice", "Specific advice"),
+    ("has_encouragement", "Encouragement"),
+    ("has_goal_plan", "Goal/plan language"),
+    ("has_data_reference", "Data references"),
+]
 
 
 @dataclass(frozen=True)
@@ -114,9 +143,9 @@ COHORT_CONFIGS: dict[str, CohortConfig] = {
     "weight_loss": CohortConfig(
         key="weight_loss",
         label="weight-loss cohort",
-        title="Enhanced mediation analysis - weight-loss cohort",
-        human_keyword="#daily_activity_checkin",
-        eps_keyword="#exercise_feedback",
+        title="Frequency-control and feedback-content audit - weight-loss cohort",
+        human_keyword="#日常活动打卡",
+        eps_keyword="#运动点评",
         primary_plot_outcome="weight_loss_kg",
         plot_ylabel="Weight loss (kg)",
         outcome_specs=(
@@ -146,9 +175,9 @@ COHORT_CONFIGS: dict[str, CohortConfig] = {
     "glycemic": CohortConfig(
         key="glycemic",
         label="glycemic-control cohort",
-        title="Enhanced mediation analysis - glycemic-control cohort",
-        human_keyword="#daily_activity_checkin",
-        eps_keyword="#exercise_feedback",
+        title="Frequency-control and feedback-content audit - glycemic-control cohort",
+        human_keyword="#日常活动打卡",
+        eps_keyword="#运动点评",
         primary_plot_outcome="fpg_reduction",
         plot_ylabel="FPG reduction (mmol/L)",
         outcome_specs=(
@@ -172,7 +201,7 @@ COHORT_CONFIGS: dict[str, CohortConfig] = {
 
 
 def log(message: str) -> None:
-    print(f"[enhanced-feedback-mediation] {message}", flush=True)
+    print(f"[checkin-frequency-control] {message}", flush=True)
 
 
 def ensure_parent_dir(path: Path) -> None:
@@ -242,7 +271,7 @@ def sex_to_female_indicator(value: Any) -> float | None:
         return 1.0
     if text in male_tokens:
         return 0.0
-    return None
+    return 0.0
 
 
 def format_number(value: Any, digits: int = 4) -> str:
@@ -251,6 +280,10 @@ def format_number(value: Any, digits: int = 4) -> str:
     if isinstance(value, int):
         return str(value)
     return f"{value:.{digits}f}"
+
+
+def format_pct(value: float | None) -> str:
+    return "NA" if value is None else f"{value:.1%}"
 
 
 def pstar(p_value: float | None) -> str:
@@ -489,11 +522,9 @@ def load_arm_dataset(
         endline_idx = header.index(endline_column)
 
     dataset: list[dict[str, Any]] = []
-    seen_users: set[str] = set()
-    duplicate_rows_skipped = 0
     blank_streak = 0
 
-    for row in worksheet.iter_rows(min_row=2, values_only=True):
+    for source_row_number, row in enumerate(worksheet.iter_rows(min_row=2, values_only=True), start=2):
         if all(value in (None, "") for value in row):
             blank_streak += 1
             if blank_streak >= 200:
@@ -503,17 +534,9 @@ def load_arm_dataset(
         raw_user = to_clean_text(row[user_idx])
         user = clean_name(raw_user)
         if not user:
-            blank_streak += 1
-            if blank_streak >= 200:
-                break
-            continue
+            user = f"MISSING_NICKNAME_{source_row_number}"
 
         blank_streak = 0
-        if user in seen_users:
-            duplicate_rows_skipped += 1
-            continue
-        seen_users.add(user)
-
         age = to_float(row[age_idx])
         bmi = to_float(row[bmi_idx])
         sex_f = sex_to_female_indicator(row[sex_idx])
@@ -524,6 +547,7 @@ def load_arm_dataset(
             "group": group_value,
             "user": user,
             "user_raw": raw_user,
+            "source_row_number": source_row_number,
             "feedback_count": feedback_count,
             "received_any_feedback": 1.0 if feedback_count >= 1 else 0.0,
             "age": age,
@@ -566,8 +590,6 @@ def load_arm_dataset(
         dataset.append(record)
 
     workbook.close()
-    if duplicate_rows_skipped:
-        log(f"{arm_label}: skipped {duplicate_rows_skipped} duplicate row(s) after nickname normalization.")
     return dataset
 
 
@@ -616,15 +638,33 @@ def build_quality_warnings(diagnostics: list[dict[str, Any]], all_rows: list[dic
     return warnings
 
 
+def extract_feedback_segment(content: str, keyword: str) -> str:
+    """Return only the text belonging to the requested feedback hashtag."""
+    text = normalize_text(content)
+    matches = list(re.finditer(re.escape(keyword), text))
+    if not matches:
+        return ""
+    segment = text[matches[-1].end():]
+    next_hash = re.search(r"\s#[^\s#@]+", segment)
+    if next_hash:
+        segment = segment[: next_hash.start()]
+    segment = re.sub(r"^\s*[：:，,。.\-—–]+", "", segment)
+    return segment.strip()
+
+
 def _quality_features(content: str) -> dict[str, float]:
     stripped = re.sub(r"#\S+|@\S+", "", content).strip()
     char_count = len(re.sub(r"\s+", "", stripped))
+    encouragement_hits = ENCOURAGEMENT_RE.findall(content)
     return {
         "char_count": float(char_count),
         "has_exercise_params": float(bool(EXERCISE_PARAM_RE.search(content))),
         "has_personalisation": float(bool(PERSONALISE_RE.search(content))),
         "has_advice": float(bool(ADVICE_RE.search(content))),
-        "positive_count": float(len(POSITIVE_RE.findall(content))),
+        "has_encouragement": float(bool(encouragement_hits)),
+        "has_goal_plan": float(bool(GOAL_PLAN_RE.search(content))),
+        "has_data_reference": float(bool(DATA_REFERENCE_RE.search(content))),
+        "positive_count": float(len(encouragement_hits)),
     }
 
 
@@ -707,9 +747,21 @@ def parse_chat_features(
                 target = resolved
                 break
         if target is None:
+            raw_mentions = [clean_name(match.group(1)) for match in re.finditer(r"@([^\s#@]+)", normalize_text(content))]
+            for raw_mention in [mention for mention in raw_mentions if mention]:
+                for prev_idx2 in range(idx - 1, max(idx - 600, -1), -1):
+                    _, prev_canonical, _, _ = timeline[prev_idx2]
+                    if prev_canonical and _name_matches(raw_mention, prev_canonical):
+                        target = prev_canonical
+                        break
+                if target:
+                    break
+        if target is None:
             continue
 
-        qualities[target].append(_quality_features(content))
+        feedback_segment = extract_feedback_segment(content, keyword)
+        if feedback_segment:
+            qualities[target].append(_quality_features(feedback_segment))
 
         if timestamp_fb is None:
             continue
@@ -743,6 +795,9 @@ def parse_chat_features(
             "mean_has_exercise_params": float(np.mean([item["has_exercise_params"] for item in user_qualities])) if user_qualities else None,
             "mean_has_personalisation": float(np.mean([item["has_personalisation"] for item in user_qualities])) if user_qualities else None,
             "mean_has_advice": float(np.mean([item["has_advice"] for item in user_qualities])) if user_qualities else None,
+            "mean_has_encouragement": float(np.mean([item["has_encouragement"] for item in user_qualities])) if user_qualities else None,
+            "mean_has_goal_plan": float(np.mean([item["has_goal_plan"] for item in user_qualities])) if user_qualities else None,
+            "mean_has_data_reference": float(np.mean([item["has_data_reference"] for item in user_qualities])) if user_qualities else None,
             "mean_positive_count": float(np.mean([item["positive_count"] for item in user_qualities])) if user_qualities else None,
         }
 
@@ -751,6 +806,159 @@ def parse_chat_features(
         f"latency matches canonical={latency_match_modes['canonical']}, fuzzy={latency_match_modes['fuzzy']}."
     )
     return result
+
+
+def extract_arm_quality_messages(*, chat_path: Path, keyword: str, arm_label: str) -> list[dict[str, Any]]:
+    """Extract one coded row per non-empty feedback hashtag segment."""
+    if not chat_path.exists():
+        log(f"{arm_label}: chat file not found ({chat_path.name}); skipping message-level content audit.")
+        return []
+
+    workbook = load_workbook(chat_path, read_only=True, data_only=True)
+    worksheet = workbook[workbook.sheetnames[0]]
+    header = [str(value) if value is not None else "" for value in next(worksheet.iter_rows(min_row=1, max_row=1, values_only=True))]
+    content_column = pick_header_name(header, CHAT_CONTENT_COLUMNS, required=True, label="message-content", path=chat_path)
+    content_idx = header.index(content_column)
+
+    coded: list[dict[str, Any]] = []
+    keyword_message_count = 0
+    empty_segment_count = 0
+    for row_number, row in enumerate(worksheet.iter_rows(min_row=2, values_only=True), start=2):
+        if all(value in (None, "") for value in row):
+            continue
+        content = str(row[content_idx]) if row[content_idx] is not None else ""
+        if not keyword_in_content(content, keyword):
+            continue
+        keyword_message_count += 1
+        segment = extract_feedback_segment(content, keyword)
+        if not segment:
+            empty_segment_count += 1
+            continue
+        features = _quality_features(segment)
+        features.update(
+            {
+                "arm": arm_label,
+                "keyword": keyword,
+                "source_row_number": row_number,
+            }
+        )
+        coded.append(features)
+    workbook.close()
+
+    log(
+        f"{arm_label}: content audit coded {len(coded)} non-empty {keyword} segments "
+        f"({keyword_message_count} keyword messages, {empty_segment_count} empty segments)."
+    )
+    return coded
+
+
+def _binary_quality_comparison(
+    human_messages: list[dict[str, Any]],
+    eps_messages: list[dict[str, Any]],
+    key: str,
+    label: str,
+) -> dict[str, Any]:
+    human_values = [float(message[key]) for message in human_messages if key in message]
+    eps_values = [float(message[key]) for message in eps_messages if key in message]
+    n_human = len(human_values)
+    n_eps = len(eps_values)
+    human_hits = int(sum(human_values))
+    eps_hits = int(sum(eps_values))
+    human_rate = human_hits / n_human if n_human else None
+    eps_rate = eps_hits / n_eps if n_eps else None
+    diff = eps_rate - human_rate if human_rate is not None and eps_rate is not None else None
+
+    if diff is not None and n_human > 0 and n_eps > 0:
+        se = math.sqrt(eps_rate * (1.0 - eps_rate) / n_eps + human_rate * (1.0 - human_rate) / n_human)
+        ci_low = diff - 1.96 * se
+        ci_high = diff + 1.96 * se
+        pooled = (human_hits + eps_hits) / (n_human + n_eps)
+        pooled_se = math.sqrt(pooled * (1.0 - pooled) * (1.0 / n_human + 1.0 / n_eps))
+        p_value = normal_two_sided_p(diff / pooled_se) if pooled_se > 0 else (1.0 if abs(diff) < 1e-12 else 0.0)
+    else:
+        ci_low = ci_high = p_value = None
+
+    return {
+        "feature": key,
+        "label": label,
+        "metric": "message proportion",
+        "human_n": n_human,
+        "human_hits": human_hits,
+        "human_value": human_rate,
+        "eps_n": n_eps,
+        "eps_hits": eps_hits,
+        "eps_value": eps_rate,
+        "difference_eps_minus_human": diff,
+        "ci_low": ci_low,
+        "ci_high": ci_high,
+        "p_value": p_value,
+        "sig": pstar(p_value),
+    }
+
+
+def _mean_quality_comparison(
+    human_messages: list[dict[str, Any]],
+    eps_messages: list[dict[str, Any]],
+    key: str,
+    label: str,
+) -> dict[str, Any]:
+    human_values = np.array([float(message[key]) for message in human_messages if key in message], dtype=float)
+    eps_values = np.array([float(message[key]) for message in eps_messages if key in message], dtype=float)
+    n_human = len(human_values)
+    n_eps = len(eps_values)
+    human_mean = float(np.mean(human_values)) if n_human else None
+    eps_mean = float(np.mean(eps_values)) if n_eps else None
+    diff = eps_mean - human_mean if human_mean is not None and eps_mean is not None else None
+
+    if diff is not None and n_human > 1 and n_eps > 1:
+        human_var = float(np.var(human_values, ddof=1))
+        eps_var = float(np.var(eps_values, ddof=1))
+        se = math.sqrt(eps_var / n_eps + human_var / n_human)
+        ci_low = diff - 1.96 * se
+        ci_high = diff + 1.96 * se
+        p_value = normal_two_sided_p(diff / se) if se > 0 else (1.0 if abs(diff) < 1e-12 else 0.0)
+    else:
+        ci_low = ci_high = p_value = None
+
+    return {
+        "feature": key,
+        "label": label,
+        "metric": "message mean",
+        "human_n": n_human,
+        "human_hits": None,
+        "human_value": human_mean,
+        "eps_n": n_eps,
+        "eps_hits": None,
+        "eps_value": eps_mean,
+        "difference_eps_minus_human": diff,
+        "ci_low": ci_low,
+        "ci_high": ci_high,
+        "p_value": p_value,
+        "sig": pstar(p_value),
+    }
+
+
+def run_keyword_quality_comparison(
+    human_messages: list[dict[str, Any]],
+    eps_messages: list[dict[str, Any]],
+) -> dict[str, Any]:
+    rows = [_mean_quality_comparison(human_messages, eps_messages, "char_count", "Segment length (chars)")]
+    rows.extend(
+        _binary_quality_comparison(human_messages, eps_messages, key, label)
+        for key, label in QUALITY_BINARY_FEATURES
+    )
+    return {
+        "module": "Panel C - Message-Level Feedback-Content Audit",
+        "unit": "non-empty feedback hashtag segment",
+        "human_n_messages": len(human_messages),
+        "eps_n_messages": len(eps_messages),
+        "features": rows,
+        "interpretation": (
+            "This is a construct-validity audit, not a formal causal mediation model. "
+            "Positive differences mean EPS-human feedback segments have a higher message-level "
+            "mean or feature prevalence than Human feedback segments."
+        ),
+    }
 
 
 def extract_arm_latencies_all_messages(*, chat_path: Path, keyword: str, arm_label: str) -> list[float]:
@@ -804,30 +1012,6 @@ def extract_arm_latencies_all_messages(*, chat_path: Path, keyword: str, arm_lab
     return latencies
 
 
-def build_quality_index(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    components = ["mean_char_count", "mean_has_exercise_params", "mean_has_personalisation", "mean_has_advice"]
-    stats: dict[str, tuple[float, float]] = {}
-    for component in components:
-        values = [row[component] for row in rows if row.get(component) is not None]
-        if len(values) >= 2:
-            mean = float(np.mean(values))
-            sd = float(np.std(values, ddof=1))
-            stats[component] = (mean, sd if sd > 1e-9 else 1.0)
-        else:
-            stats[component] = (0.0, 1.0)
-
-    for row in rows:
-        z_scores = []
-        for component in components:
-            value = row.get(component)
-            if value is None:
-                continue
-            mean, sd = stats[component]
-            z_scores.append((value - mean) / sd)
-        row["quality_index"] = float(np.mean(z_scores)) if z_scores else None
-    return rows
-
-
 def with_intercept(*columns: np.ndarray) -> np.ndarray:
     n_rows = len(columns[0])
     return np.column_stack([np.ones(n_rows)] + [np.asarray(column, dtype=float) for column in columns])
@@ -857,46 +1041,6 @@ def fit_ols(y: np.ndarray, design: np.ndarray) -> dict[str, Any]:
     tss = float(np.sum((y - np.mean(y)) ** 2))
     r2 = float("nan") if tss <= 0 else 1.0 - rss / tss
     return {"beta": beta, "se": se, "p": p_value, "r2": r2, "n_obs": n_obs}
-
-
-def fit_ols_fast(y: np.ndarray, design: np.ndarray) -> np.ndarray:
-    beta, *_ = np.linalg.lstsq(design, y, rcond=None)
-    return beta
-
-
-def boot_indirect_double(
-    *,
-    x: np.ndarray,
-    m1: np.ndarray,
-    m2: np.ndarray,
-    y: np.ndarray,
-    covars: np.ndarray,
-    n_boot: int,
-    seed: int,
-) -> dict[str, Any]:
-    rng = np.random.default_rng(seed)
-    n_obs = len(y)
-    draws_m1 = np.empty(n_boot, dtype=float)
-    draws_m2 = np.empty(n_boot, dtype=float)
-    for index in range(n_boot):
-        sample_idx = rng.integers(0, n_obs, size=n_obs)
-        a1 = fit_ols_fast(m1[sample_idx], with_intercept(x[sample_idx], covars[sample_idx]))[1]
-        a2 = fit_ols_fast(m2[sample_idx], with_intercept(x[sample_idx], covars[sample_idx]))[1]
-        beta_y = fit_ols_fast(y[sample_idx], with_intercept(x[sample_idx], m1[sample_idx], m2[sample_idx], covars[sample_idx]))
-        draws_m1[index] = a1 * beta_y[2]
-        draws_m2[index] = a2 * beta_y[3]
-
-    def summarise(draws: np.ndarray) -> dict[str, Any]:
-        ci_low, ci_high = np.percentile(draws, [2.5, 97.5])
-        return {
-            "estimate": float(np.mean(draws)),
-            "ci_low": float(ci_low),
-            "ci_high": float(ci_high),
-            "significant": not (ci_low <= 0.0 <= ci_high),
-            "draws": draws.tolist(),
-        }
-
-    return {"m1": summarise(draws_m1), "m2": summarise(draws_m2)}
 
 
 def rank_average_ties(values: np.ndarray) -> np.ndarray:
@@ -1028,7 +1172,7 @@ def run_interaction_model(rows: list[dict[str, Any]], spec: OutcomeSpec) -> dict
         "n_eps": int(np.sum(eps_mask)),
         "feedback_count_centre": centre,
         "arm_effect_at_centre": {
-            "label": "beta_1 (quality effect at Human mean count)",
+            "label": "beta_1 (arm effect at equal feedback count)",
             "estimate": float(fit["beta"][1]),
             "se": float(fit["se"][1]),
             "p_value": float(fit["p"][1]),
@@ -1049,7 +1193,7 @@ def run_interaction_model(rows: list[dict[str, Any]], spec: OutcomeSpec) -> dict
             "sig": pstar(float(fit["p"][3])),
         },
         "r2": float(fit["r2"]),
-        "interpretation": "A significant arm effect at equal feedback frequency supports a quality channel beyond feedback frequency alone.",
+        "interpretation": "A persistent arm effect at equal feedback frequency indicates that the outcome difference is not explained by feedback count alone.",
         "within_arm_dose_response": {
             "human_spearman_rho": human_corr["rho"],
             "human_spearman_p": human_corr["p"],
@@ -1141,149 +1285,7 @@ def run_matching_analysis(rows: list[dict[str, Any]], spec: OutcomeSpec) -> dict
             "p_value": float(fit_count_adj["p"][1]),
             "sig": pstar(float(fit_count_adj["p"][1])),
         },
-        "interpretation": "A persistent arm effect in the matched subsample suggests a quality channel when feedback frequency is held approximately constant.",
-    }
-
-
-def run_latency_mediation(rows: list[dict[str, Any]], spec: OutcomeSpec, *, n_boot: int, seed: int) -> dict[str, Any]:
-    extra_keys = required_keys(spec) + ["mean_latency_min"]
-    valid = [row for row in rows if all(row.get(key) is not None for key in extra_keys)]
-    if len(valid) < 10:
-        return {"error": f"Too few complete cases with latency data ({len(valid)}).", "outcome": spec.key, "outcome_title": spec.title}
-
-    x = np.array([row["group"] for row in valid], dtype=float)
-    m1 = np.array([row["feedback_count"] for row in valid], dtype=float)
-    m2 = np.array([row["mean_latency_min"] for row in valid], dtype=float)
-    y = np.array([row[spec.key] for row in valid], dtype=float)
-    covars = covariate_matrix(valid, spec)
-
-    fit_a1 = fit_ols(m1, with_intercept(x, covars))
-    fit_a2 = fit_ols(m2, with_intercept(x, covars))
-    fit_b = fit_ols(y, with_intercept(x, m1, m2, covars))
-    boot = boot_indirect_double(x=x, m1=m1, m2=m2, y=y, covars=covars, n_boot=n_boot, seed=seed)
-
-    return {
-        "module": "Module 3 - Multi-Mediator: Count + Response Latency",
-        "outcome": spec.key,
-        "outcome_title": spec.title,
-        "n_obs": len(valid),
-        "path_a_feedback_count": {
-            "estimate": float(fit_a1["beta"][1]),
-            "se": float(fit_a1["se"][1]),
-            "p_value": float(fit_a1["p"][1]),
-            "sig": pstar(float(fit_a1["p"][1])),
-        },
-        "path_a_latency": {
-            "estimate": float(fit_a2["beta"][1]),
-            "se": float(fit_a2["se"][1]),
-            "p_value": float(fit_a2["p"][1]),
-            "sig": pstar(float(fit_a2["p"][1])),
-        },
-        "path_b_feedback_count": {
-            "estimate": float(fit_b["beta"][2]),
-            "se": float(fit_b["se"][2]),
-            "p_value": float(fit_b["p"][2]),
-            "sig": pstar(float(fit_b["p"][2])),
-        },
-        "path_b_latency": {
-            "estimate": float(fit_b["beta"][3]),
-            "se": float(fit_b["se"][3]),
-            "p_value": float(fit_b["p"][3]),
-            "sig": pstar(float(fit_b["p"][3])),
-        },
-        "direct_effect": {
-            "estimate": float(fit_b["beta"][1]),
-            "se": float(fit_b["se"][1]),
-            "p_value": float(fit_b["p"][1]),
-            "sig": pstar(float(fit_b["p"][1])),
-        },
-        "indirect_via_count": {
-            "point_estimate": float(fit_a1["beta"][1] * fit_b["beta"][2]),
-            "ci_low": boot["m1"]["ci_low"],
-            "ci_high": boot["m1"]["ci_high"],
-            "significant": boot["m1"]["significant"],
-        },
-        "indirect_via_latency": {
-            "point_estimate": float(fit_a2["beta"][1] * fit_b["beta"][3]),
-            "ci_low": boot["m2"]["ci_low"],
-            "ci_high": boot["m2"]["ci_high"],
-            "significant": boot["m2"]["significant"],
-        },
-        "r2_outcome_model": float(fit_b["r2"]),
-        "interpretation": "A significant latency-mediated path suggests response speed operates as an additional channel beyond feedback frequency.",
-        "bootstrap_draws_count": boot["m1"]["draws"],
-        "bootstrap_draws_latency": boot["m2"]["draws"],
-    }
-
-
-def run_quality_mediation(rows: list[dict[str, Any]], spec: OutcomeSpec, *, n_boot: int, seed: int) -> dict[str, Any]:
-    extra_keys = required_keys(spec) + ["quality_index"]
-    valid = [row for row in rows if all(row.get(key) is not None for key in extra_keys)]
-    if len(valid) < 10:
-        return {"error": f"Too few complete cases with quality-index data ({len(valid)}).", "outcome": spec.key, "outcome_title": spec.title}
-
-    x = np.array([row["group"] for row in valid], dtype=float)
-    m1 = np.array([row["feedback_count"] for row in valid], dtype=float)
-    m2 = np.array([row["quality_index"] for row in valid], dtype=float)
-    y = np.array([row[spec.key] for row in valid], dtype=float)
-    covars = covariate_matrix(valid, spec)
-
-    fit_a1 = fit_ols(m1, with_intercept(x, covars))
-    fit_a2 = fit_ols(m2, with_intercept(x, covars))
-    fit_b = fit_ols(y, with_intercept(x, m1, m2, covars))
-    boot = boot_indirect_double(x=x, m1=m1, m2=m2, y=y, covars=covars, n_boot=n_boot, seed=seed)
-
-    return {
-        "module": "Module 4 - Multi-Mediator: Count + Quality Index",
-        "outcome": spec.key,
-        "outcome_title": spec.title,
-        "n_obs": len(valid),
-        "path_a_feedback_count": {
-            "estimate": float(fit_a1["beta"][1]),
-            "se": float(fit_a1["se"][1]),
-            "p_value": float(fit_a1["p"][1]),
-            "sig": pstar(float(fit_a1["p"][1])),
-        },
-        "path_a_quality_index": {
-            "estimate": float(fit_a2["beta"][1]),
-            "se": float(fit_a2["se"][1]),
-            "p_value": float(fit_a2["p"][1]),
-            "sig": pstar(float(fit_a2["p"][1])),
-        },
-        "path_b_feedback_count": {
-            "estimate": float(fit_b["beta"][2]),
-            "se": float(fit_b["se"][2]),
-            "p_value": float(fit_b["p"][2]),
-            "sig": pstar(float(fit_b["p"][2])),
-        },
-        "path_b_quality_index": {
-            "estimate": float(fit_b["beta"][3]),
-            "se": float(fit_b["se"][3]),
-            "p_value": float(fit_b["p"][3]),
-            "sig": pstar(float(fit_b["p"][3])),
-        },
-        "direct_effect": {
-            "estimate": float(fit_b["beta"][1]),
-            "se": float(fit_b["se"][1]),
-            "p_value": float(fit_b["p"][1]),
-            "sig": pstar(float(fit_b["p"][1])),
-        },
-        "indirect_via_count": {
-            "point_estimate": float(fit_a1["beta"][1] * fit_b["beta"][2]),
-            "ci_low": boot["m1"]["ci_low"],
-            "ci_high": boot["m1"]["ci_high"],
-            "significant": boot["m1"]["significant"],
-        },
-        "indirect_via_quality": {
-            "point_estimate": float(fit_a2["beta"][1] * fit_b["beta"][3]),
-            "ci_low": boot["m2"]["ci_low"],
-            "ci_high": boot["m2"]["ci_high"],
-            "significant": boot["m2"]["significant"],
-        },
-        "r2_outcome_model": float(fit_b["r2"]),
-        "interpretation": "A significant quality-mediated path supports the hypothesis that message quality contributes beyond feedback frequency.",
-        "bootstrap_draws_count": boot["m1"]["draws"],
-        "bootstrap_draws_quality": boot["m2"]["draws"],
+        "interpretation": "A persistent arm effect in the matched subsample indicates that the outcome difference is not explained by feedback count alone.",
     }
 
 
@@ -1307,8 +1309,10 @@ def describe_features(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "mean_has_exercise_params",
         "mean_has_personalisation",
         "mean_has_advice",
+        "mean_has_encouragement",
+        "mean_has_goal_plan",
+        "mean_has_data_reference",
         "mean_positive_count",
-        "quality_index",
     ]
     human_rows = [row for row in rows if row["group"] == HUMAN_GROUP]
     eps_rows = [row for row in rows if row["group"] == EPS_GROUP]
@@ -1319,7 +1323,9 @@ def maybe_build_plot(
     *,
     rows: list[dict[str, Any]],
     config: CohortConfig,
-    primary_quality_result: dict[str, Any],
+    quality_comparison: dict[str, Any],
+    human_latencies: list[float],
+    eps_latencies: list[float],
     plot_path: Path,
 ) -> str:
     try:
@@ -1332,8 +1338,8 @@ def maybe_build_plot(
         return f"Skipped plot generation because matplotlib is unavailable: {exc}"
 
     colors = {"Human": "#2563EB", "EPS-human": "#EA580C"}
-    fig = plt.figure(figsize=(16, 10), facecolor="white")
-    gs = gridspec.GridSpec(2, 3, figure=fig, hspace=0.45, wspace=0.35)
+    fig = plt.figure(figsize=(13, 9), facecolor="white")
+    gs = gridspec.GridSpec(2, 2, figure=fig, hspace=0.42, wspace=0.32)
 
     human_rows = [row for row in rows if row["group"] == HUMAN_GROUP]
     eps_rows = [row for row in rows if row["group"] == EPS_GROUP]
@@ -1367,55 +1373,39 @@ def maybe_build_plot(
     ax_b.legend(fontsize=8)
     ax_b.spines[["top", "right"]].set_visible(False)
 
-    ax_c = fig.add_subplot(gs[0, 2])
-    count_draws = np.array(primary_quality_result.get("bootstrap_draws_count", []), dtype=float)
-    if len(count_draws) > 0:
-        ax_c.hist(count_draws, bins=50, color="#6366F1", alpha=0.7)
-        ax_c.axvline(primary_quality_result["indirect_via_count"]["point_estimate"], color="black", linewidth=1.8, label="Observed")
-        ax_c.axvline(primary_quality_result["indirect_via_count"]["ci_low"], color="red", linestyle="--", linewidth=1.4)
-        ax_c.axvline(primary_quality_result["indirect_via_count"]["ci_high"], color="red", linestyle="--", linewidth=1.4, label="95% CI")
-        ax_c.axvline(0.0, color="gray", linestyle=":", linewidth=1.0)
+    ax_c = fig.add_subplot(gs[1, 0])
+    binary_features = [item for item in quality_comparison.get("features", []) if item.get("metric") == "message proportion"]
+    if binary_features:
+        labels = [item["label"] for item in binary_features]
+        human_values = [100.0 * item["human_value"] if item["human_value"] is not None else np.nan for item in binary_features]
+        eps_values = [100.0 * item["eps_value"] if item["eps_value"] is not None else np.nan for item in binary_features]
+        positions = np.arange(len(labels))
+        width = 0.38
+        ax_c.bar(positions - width / 2, human_values, width, color=colors["Human"], alpha=0.78, label="Human")
+        ax_c.bar(positions + width / 2, eps_values, width, color=colors["EPS-human"], alpha=0.78, label="EPS-human")
+        ax_c.set_xticks(positions)
+        ax_c.set_xticklabels(labels, rotation=28, ha="right")
+        ax_c.set_ylim(0, 105)
         ax_c.legend(fontsize=8)
     else:
-        ax_c.text(0.5, 0.5, "Insufficient data", ha="center", va="center", transform=ax_c.transAxes)
-    ax_c.set_title("C. Indirect via count")
+        ax_c.text(0.5, 0.5, "No coded messages", ha="center", va="center", transform=ax_c.transAxes)
+    ax_c.set_ylabel("Messages with feature (%)")
+    ax_c.set_title("C. Content audit")
     ax_c.spines[["top", "right"]].set_visible(False)
 
-    ax_d = fig.add_subplot(gs[1, 0])
-    quality_draws = np.array(primary_quality_result.get("bootstrap_draws_quality", []), dtype=float)
-    if len(quality_draws) > 0:
-        ax_d.hist(quality_draws, bins=50, color="#F59E0B", alpha=0.7)
-        ax_d.axvline(primary_quality_result["indirect_via_quality"]["point_estimate"], color="black", linewidth=1.8, label="Observed")
-        ax_d.axvline(primary_quality_result["indirect_via_quality"]["ci_low"], color="red", linestyle="--", linewidth=1.4)
-        ax_d.axvline(primary_quality_result["indirect_via_quality"]["ci_high"], color="red", linestyle="--", linewidth=1.4, label="95% CI")
-        ax_d.axvline(0.0, color="gray", linestyle=":", linewidth=1.0)
+    ax_d = fig.add_subplot(gs[1, 1])
+    for values, label in ((human_latencies, "Human"), (eps_latencies, "EPS-human")):
+        if values:
+            ax_d.hist(values, bins=25, density=True, alpha=0.55, color=colors[label], label=label)
+            ax_d.axvline(float(np.median(values)), color=colors[label], linewidth=1.7)
+    if human_latencies or eps_latencies:
         ax_d.legend(fontsize=8)
     else:
-        ax_d.text(0.5, 0.5, "Insufficient data", ha="center", va="center", transform=ax_d.transAxes)
-    ax_d.set_title("D. Indirect via quality")
+        ax_d.text(0.5, 0.5, "No latency matches", ha="center", va="center", transform=ax_d.transAxes)
+    ax_d.set_xlabel("Response latency (min)")
+    ax_d.set_ylabel("Density")
+    ax_d.set_title("D. Response latency")
     ax_d.spines[["top", "right"]].set_visible(False)
-
-    ax_e = fig.add_subplot(gs[1, 1])
-    for arm_rows, label in ((human_rows, "Human"), (eps_rows, "EPS-human")):
-        values = [row["quality_index"] for row in arm_rows if row.get("quality_index") is not None]
-        if values:
-            ax_e.hist(values, bins=20, density=True, alpha=0.55, color=colors[label], label=label)
-    ax_e.set_xlabel("Quality index (z-score)")
-    ax_e.set_ylabel("Density")
-    ax_e.set_title("E. Quality index distribution")
-    ax_e.legend(fontsize=8)
-    ax_e.spines[["top", "right"]].set_visible(False)
-
-    ax_f = fig.add_subplot(gs[1, 2])
-    for arm_rows, label in ((human_rows, "Human"), (eps_rows, "EPS-human")):
-        values = [row["mean_latency_min"] for row in arm_rows if row.get("mean_latency_min") is not None]
-        if values:
-            ax_f.hist(values, bins=20, density=True, alpha=0.55, color=colors[label], label=label)
-    ax_f.set_xlabel("Mean response latency (min)")
-    ax_f.set_ylabel("Density")
-    ax_f.set_title("F. Response latency distribution")
-    ax_f.legend(fontsize=8)
-    ax_f.spines[["top", "right"]].set_visible(False)
 
     fig.suptitle(config.title, fontsize=13, fontweight="bold")
     ensure_parent_dir(plot_path)
@@ -1476,6 +1466,7 @@ def dataset_headers_for_cohort(cohort: str) -> list[str]:
         "arm",
         "group",
         "user",
+        "source_row_number",
         "feedback_count",
         "received_any_feedback",
         "age",
@@ -1494,8 +1485,10 @@ def dataset_headers_for_cohort(cohort: str) -> list[str]:
         "mean_has_exercise_params",
         "mean_has_personalisation",
         "mean_has_advice",
+        "mean_has_encouragement",
+        "mean_has_goal_plan",
+        "mean_has_data_reference",
         "mean_positive_count",
-        "quality_index",
     ]
     return base + clinical + feature
 
@@ -1545,62 +1538,6 @@ def module_2_rows(result: dict[str, Any]) -> list[tuple[str, Any]]:
     ]
 
 
-def module_3_rows(result: dict[str, Any]) -> list[tuple[str, Any]]:
-    return [
-        ("Path a1 (arm->count)", format_number(result["path_a_feedback_count"]["estimate"])),
-        ("Path a1 p-value", format_number(result["path_a_feedback_count"]["p_value"])),
-        ("Path a1 sig", result["path_a_feedback_count"]["sig"]),
-        ("Path a2 (arm->latency)", format_number(result["path_a_latency"]["estimate"])),
-        ("Path a2 p-value", format_number(result["path_a_latency"]["p_value"])),
-        ("Path a2 sig", result["path_a_latency"]["sig"]),
-        ("Path b1 (count->Y)", format_number(result["path_b_feedback_count"]["estimate"])),
-        ("Path b1 p-value", format_number(result["path_b_feedback_count"]["p_value"])),
-        ("Path b1 sig", result["path_b_feedback_count"]["sig"]),
-        ("Path b2 (latency->Y)", format_number(result["path_b_latency"]["estimate"])),
-        ("Path b2 p-value", format_number(result["path_b_latency"]["p_value"])),
-        ("Path b2 sig", result["path_b_latency"]["sig"]),
-        ("Direct effect", format_number(result["direct_effect"]["estimate"])),
-        ("Direct effect p", format_number(result["direct_effect"]["p_value"])),
-        ("Direct effect sig", result["direct_effect"]["sig"]),
-        ("Indirect via count", format_number(result["indirect_via_count"]["point_estimate"])),
-        ("Indirect via count 95% CI", f"[{format_number(result['indirect_via_count']['ci_low'])}, {format_number(result['indirect_via_count']['ci_high'])}]"),
-        ("Indirect via count sig", result["indirect_via_count"]["significant"]),
-        ("Indirect via latency", format_number(result["indirect_via_latency"]["point_estimate"])),
-        ("Indirect via latency 95% CI", f"[{format_number(result['indirect_via_latency']['ci_low'])}, {format_number(result['indirect_via_latency']['ci_high'])}]"),
-        ("Indirect via latency sig", result["indirect_via_latency"]["significant"]),
-        ("R2", format_number(result["r2_outcome_model"])),
-        ("Interpretation", result["interpretation"]),
-    ]
-
-
-def module_4_rows(result: dict[str, Any]) -> list[tuple[str, Any]]:
-    return [
-        ("Path a1 (arm->count)", format_number(result["path_a_feedback_count"]["estimate"])),
-        ("Path a1 p-value", format_number(result["path_a_feedback_count"]["p_value"])),
-        ("Path a1 sig", result["path_a_feedback_count"]["sig"]),
-        ("Path a2 (arm->quality)", format_number(result["path_a_quality_index"]["estimate"])),
-        ("Path a2 p-value", format_number(result["path_a_quality_index"]["p_value"])),
-        ("Path a2 sig", result["path_a_quality_index"]["sig"]),
-        ("Path b1 (count->Y)", format_number(result["path_b_feedback_count"]["estimate"])),
-        ("Path b1 p-value", format_number(result["path_b_feedback_count"]["p_value"])),
-        ("Path b1 sig", result["path_b_feedback_count"]["sig"]),
-        ("Path b2 (quality->Y)", format_number(result["path_b_quality_index"]["estimate"])),
-        ("Path b2 p-value", format_number(result["path_b_quality_index"]["p_value"])),
-        ("Path b2 sig", result["path_b_quality_index"]["sig"]),
-        ("Direct effect", format_number(result["direct_effect"]["estimate"])),
-        ("Direct effect p", format_number(result["direct_effect"]["p_value"])),
-        ("Direct effect sig", result["direct_effect"]["sig"]),
-        ("Indirect via count", format_number(result["indirect_via_count"]["point_estimate"])),
-        ("Indirect via count 95% CI", f"[{format_number(result['indirect_via_count']['ci_low'])}, {format_number(result['indirect_via_count']['ci_high'])}]"),
-        ("Indirect via count sig", result["indirect_via_count"]["significant"]),
-        ("Indirect via quality", format_number(result["indirect_via_quality"]["point_estimate"])),
-        ("Indirect via quality 95% CI", f"[{format_number(result['indirect_via_quality']['ci_low'])}, {format_number(result['indirect_via_quality']['ci_high'])}]"),
-        ("Indirect via quality sig", result["indirect_via_quality"]["significant"]),
-        ("R2", format_number(result["r2_outcome_model"])),
-        ("Interpretation", result["interpretation"]),
-    ]
-
-
 def write_module_sheet(workbook: Workbook, *, sheet_name: str, results: list[dict[str, Any]], row_builder) -> None:
     ws = workbook.create_sheet(sheet_name)
     for col_idx, header in enumerate(["Parameter", "Value"], start=1):
@@ -1618,50 +1555,84 @@ def write_module_sheet(workbook: Workbook, *, sheet_name: str, results: list[dic
     autosize_columns(ws)
 
 
-def write_latency_module_sheet(workbook: Workbook, *, results: list[dict[str, Any]]) -> None:
-    ws = workbook.create_sheet("Module 3 - Latency")
-    for col_idx, header in enumerate(["Parameter", "Value"], start=1):
+def format_quality_value(item: dict[str, Any], value: float | None) -> str:
+    if item.get("metric") == "message proportion":
+        return format_pct(value)
+    return format_number(value, 1)
+
+
+def write_content_audit_sheet(workbook: Workbook, *, comparison: dict[str, Any]) -> None:
+    ws = workbook.create_sheet("Panel C - Content Audit")
+    headers = ["Feature", "Human", "EPS-human", "Difference", "95% CI", "P value", "Metric"]
+    for col_idx, header in enumerate(headers, start=1):
         write_cell(ws, 1, col_idx, header, font=HEADER_FONT, fill=LINE_FILL, align=CENTER)
     row = 2
+    write_section_header(
+        ws,
+        row,
+        f"Message-level coded segments: Human n={comparison.get('human_n_messages', 0)}, EPS-human n={comparison.get('eps_n_messages', 0)}",
+        len(headers),
+    )
+    row += 1
+    for item in comparison.get("features", []):
+        ci_text = f"[{format_quality_value(item, item.get('ci_low'))}, {format_quality_value(item, item.get('ci_high'))}]"
+        values = [
+            item["label"],
+            format_quality_value(item, item.get("human_value")),
+            format_quality_value(item, item.get("eps_value")),
+            format_quality_value(item, item.get("difference_eps_minus_human")),
+            ci_text,
+            format_number(item.get("p_value")),
+            item.get("metric"),
+        ]
+        for col_idx, value in enumerate(values, start=1):
+            write_cell(ws, row, col_idx, value, align=LEFT if col_idx in (1, 7) else CENTER)
+        row += 1
+    row += 1
+    write_section_header(ws, row, "Interpretation", len(headers))
+    row += 1
+    write_cell(ws, row, 1, comparison.get("interpretation"), align=LEFT)
+    ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=len(headers))
+    autosize_columns(ws)
 
-    arm_stats = next((result.get("arm_level_latency_stats") for result in results if result.get("arm_level_latency_stats")), None)
-    if arm_stats:
-        write_section_header(ws, row, "Arm-Level Response Latency - All Feedback Messages")
-        row += 1
-        eps = arm_stats["eps"]
-        human = arm_stats["human"]
-        mann_whitney = arm_stats["mann_whitney"]
-        row = write_kv_rows(
-            ws,
-            row,
-            [
-                ("EPS arm - n latency events", eps["n"]),
-                ("EPS arm - mean latency (min)", format_number(eps["mean"], 2)),
-                ("EPS arm - median latency (min)", format_number(eps["median"], 2)),
-                ("EPS arm - SD latency (min)", format_number(eps["sd"], 2)),
-                ("EPS arm - IQR [P25, P75]", f"[{format_number(eps['p25'], 1)}, {format_number(eps['p75'], 1)}]"),
-                ("Human arm - n latency events", human["n"]),
-                ("Human arm - mean latency (min)", format_number(human["mean"], 2)),
-                ("Human arm - median latency (min)", format_number(human["median"], 2)),
-                ("Human arm - SD latency (min)", format_number(human["sd"], 2)),
-                ("Human arm - IQR [P25, P75]", f"[{format_number(human['p25'], 1)}, {format_number(human['p75'], 1)}]"),
-                ("Mann-Whitney U", format_number(mann_whitney["u"], 1) if mann_whitney["u"] is not None else "NA"),
-                ("Mann-Whitney z", format_number(mann_whitney["z"]) if mann_whitney["z"] is not None else "NA"),
-                ("Mann-Whitney p-value", format_number(mann_whitney["p"]) if mann_whitney["p"] is not None else "NA"),
-                ("Mann-Whitney sig", pstar(mann_whitney["p"]) if mann_whitney["p"] is not None else "NA"),
-            ],
-        )
-        row += 1
 
-    for result in results:
-        if "error" in result:
-            write_section_header(ws, row, f"{result.get('outcome', '?')} - SKIPPED: {result['error']}")
-            row += 1
-            continue
-        write_section_header(ws, row, f"Outcome: {result['outcome']} (n={result.get('n_obs', '?')})")
-        row += 1
-        row = write_kv_rows(ws, row, module_3_rows(result))
-        row += 1
+def write_latency_descriptive_sheet(workbook: Workbook, *, arm_stats: dict[str, Any]) -> None:
+    ws = workbook.create_sheet("Panel D - Latency")
+    headers = ["Arm", "n messages", "Mean latency (min)", "Median latency (min)", "IQR [P25, P75]", "SD latency (min)"]
+    for col_idx, header in enumerate(headers, start=1):
+        write_cell(ws, 1, col_idx, header, font=HEADER_FONT, fill=LINE_FILL, align=CENTER)
+    for row_idx, key in enumerate(["eps", "human"], start=2):
+        item = arm_stats.get(key, {})
+        values = [
+            item.get("arm"),
+            item.get("n"),
+            format_number(item.get("mean"), 2),
+            format_number(item.get("median"), 2),
+            f"[{format_number(item.get('p25'), 1)}, {format_number(item.get('p75'), 1)}]",
+            format_number(item.get("sd"), 2),
+        ]
+        for col_idx, value in enumerate(values, start=1):
+            write_cell(ws, row_idx, col_idx, value, align=LEFT if col_idx == 1 else CENTER)
+    row = 5
+    write_section_header(ws, row, "Mann-Whitney comparison", len(headers))
+    row += 1
+    mw = arm_stats.get("mann_whitney", {})
+    values = [
+        ("U", format_number(mw.get("u"), 1)),
+        ("z", format_number(mw.get("z"))),
+        ("P value", format_number(mw.get("p"))),
+        ("Significance", pstar(mw.get("p")) if mw.get("p") is not None else "NA"),
+    ]
+    row = write_kv_rows(ws, row, values)
+    write_section_header(ws, row + 1, "Definition", len(headers))
+    write_cell(
+        ws,
+        row + 2,
+        1,
+        "Latency is the elapsed time between the participant's most recent exercise-record post and the delivery of the exercise-feedback reply within a 24-hour search window.",
+        align=LEFT,
+    )
+    ws.merge_cells(start_row=row + 2, start_column=1, end_row=row + 2, end_column=len(headers))
     autosize_columns(ws)
 
 
@@ -1670,33 +1641,34 @@ def write_readme_sheet(workbook: Workbook, *, config: CohortConfig, human_keywor
     lines = [
         (config.title, HEADER_FONT, LINE_FILL),
         ("", None, None),
-        ("This workbook reports four complementary analyses that separate feedback frequency from feedback quality.", None, None),
+        ("This workbook reports the updated article logic: frequency-control analyses, a message-level content audit, and response-latency descriptives.", None, None),
+        ("The content audit is construct-validity evidence for individualized exercise prescription; it is not a formal causal mediation analysis.", None, None),
         ("", None, None),
         ("Inputs", SECTION_FONT, SECTION_FILL),
         (f"Human keyword: {human_keyword}", None, None),
         (f"EPS keyword: {eps_keyword}", None, None),
-        (f"Bootstrap draws per multi-mediator module: {n_boot}", None, None),
         (f"Random seed: {seed}", None, None),
+        (f"Deprecated bootstrap argument retained for CLI compatibility: {n_boot} (not used in this workflow)", None, None),
         ("", None, None),
-        ("Module 1 - Interaction model", SECTION_FONT, SECTION_FILL),
+        ("Panel A - Interaction / dose-response model", SECTION_FONT, SECTION_FILL),
         ("  Fits outcome ~ arm + centred feedback count + arm x count + covariates.", None, None),
-        ("  The arm effect at the Human-arm mean feedback rate is interpreted as a quality effect.", None, None),
+        ("  The arm effect at equal feedback count tests whether the arm difference persists after frequency control.", None, None),
+        ("  The arm x count term tests whether the count-outcome slope differs by arm.", None, None),
         ("", None, None),
-        ("Module 2 - Matching analysis", SECTION_FONT, SECTION_FILL),
+        ("Panel B - Nearest-neighbour matching", SECTION_FONT, SECTION_FILL),
         ("  Greedy 1:1 nearest-neighbour matching on feedback count within the overlap region.", None, None),
-        ("  A residual arm effect in the matched sample suggests a quality channel.", None, None),
+        ("  The matched model estimates the arm effect after approximate frequency balance.", None, None),
         ("", None, None),
-        ("Module 3 - Count + latency mediation", SECTION_FONT, SECTION_FILL),
-        ("  Two-mediator model using feedback count and mean response latency.", None, None),
-        ("  Includes arm-level latency descriptives based on all keyword messages.", None, None),
+        ("Panel C - Message-level content audit", SECTION_FONT, SECTION_FILL),
+        ("  Codes feedback segment length and six individualized-exercise-prescription content features.", None, None),
+        ("  Between-arm differences in proportions use two-sided z tests; segment length uses Welch-style SE.", None, None),
         ("", None, None),
-        ("Module 4 - Count + quality-index mediation", SECTION_FONT, SECTION_FILL),
-        ("  Two-mediator model using feedback count and a z-scored text-quality index.", None, None),
-        ("  Quality index combines message length, parameter coverage, personalisation, and advice density.", None, None),
+        ("Panel D - Response latency", SECTION_FONT, SECTION_FILL),
+        ("  Computes elapsed time from the participant's most recent exercise-record post to the feedback reply.", None, None),
+        ("  Reports arm-level medians, IQRs, and a Mann-Whitney comparison.", None, None),
         ("", None, None),
         ("Notes", SECTION_FONT, SECTION_FILL),
         ("  All OLS standard errors are HC3 heteroskedasticity-robust.", None, None),
-        ("  Participants with missing latency or quality features are excluded only from the affected module.", None, None),
         ("  Diagnostics still compare the checkin workbook counts against the linkage JSON reports.", None, None),
     ]
     for row_idx, (text, font, fill) in enumerate(lines, start=1):
@@ -1785,8 +1757,8 @@ def write_results_workbook(
     desc: dict[str, Any],
     m1_results: list[dict[str, Any]],
     m2_results: list[dict[str, Any]],
-    m3_results: list[dict[str, Any]],
-    m4_results: list[dict[str, Any]],
+    quality_comparison: dict[str, Any],
+    arm_latency_stats: dict[str, Any],
     human_keyword: str,
     eps_keyword: str,
     n_boot: int,
@@ -1800,10 +1772,10 @@ def write_results_workbook(
     write_diagnostics_sheet(workbook, diagnostics=diagnostics, warnings=warnings, plot_status=plot_status)
     write_dataset_sheet(workbook, cohort=config.key, rows=rows)
     write_descriptives_sheet(workbook, desc=desc)
-    write_module_sheet(workbook, sheet_name="Module 1 - Interaction", results=m1_results, row_builder=module_1_rows)
-    write_module_sheet(workbook, sheet_name="Module 2 - Matching", results=m2_results, row_builder=module_2_rows)
-    write_latency_module_sheet(workbook, results=m3_results)
-    write_module_sheet(workbook, sheet_name="Module 4 - Quality", results=m4_results, row_builder=module_4_rows)
+    write_module_sheet(workbook, sheet_name="Panel A - Interaction", results=m1_results, row_builder=module_1_rows)
+    write_module_sheet(workbook, sheet_name="Panel B - Matching", results=m2_results, row_builder=module_2_rows)
+    write_content_audit_sheet(workbook, comparison=quality_comparison)
+    write_latency_descriptive_sheet(workbook, arm_stats=arm_latency_stats)
     ensure_parent_dir(output_xlsx)
     workbook.save(output_xlsx)
 
@@ -1816,8 +1788,8 @@ def build_markdown_report(
     desc: dict[str, Any],
     m1_results: list[dict[str, Any]],
     m2_results: list[dict[str, Any]],
-    m3_results: list[dict[str, Any]],
-    m4_results: list[dict[str, Any]],
+    quality_comparison: dict[str, Any],
+    arm_latency_stats: dict[str, Any],
     plot_status: str,
 ) -> str:
     lines = [
@@ -1827,7 +1799,9 @@ def build_markdown_report(
         "",
         "## Scope",
         "",
-        f"This workflow augments the tagged-checkin linkage analysis in the {config.label} with four enhanced mediation modules based on feedback count, response latency, and text quality.",
+        f"This workflow augments the tagged-checkin linkage analysis in the {config.label} with frequency-control analyses, a message-level content audit, and response-latency descriptives.",
+        "",
+        "The message-level audit is construct-validity evidence for individualized exercise prescription. It is not a formal causal mediation analysis.",
         "",
         "## Diagnostics",
         "",
@@ -1853,17 +1827,17 @@ def build_markdown_report(
             lines.append("")
 
     append_module(
-        "Module 1 - Interaction",
+        "Panel A - Interaction / Dose-Response",
         m1_results,
         lambda result: [
-            f"beta_1 (quality effect) = {format_number(result['arm_effect_at_centre']['estimate'])} (SE {format_number(result['arm_effect_at_centre']['se'])}, p={format_number(result['arm_effect_at_centre']['p_value'])}, {result['arm_effect_at_centre']['sig']}).",
+            f"beta_1 (arm effect at equal feedback count) = {format_number(result['arm_effect_at_centre']['estimate'])} (SE {format_number(result['arm_effect_at_centre']['se'])}, p={format_number(result['arm_effect_at_centre']['p_value'])}, {result['arm_effect_at_centre']['sig']}).",
             f"beta_2 (Human-arm dose-response slope) = {format_number(result['dose_response_slope_human']['estimate'])} (p={format_number(result['dose_response_slope_human']['p_value'])}, {result['dose_response_slope_human']['sig']}).",
             f"beta_3 (interaction) = {format_number(result['interaction_term']['estimate'])} (p={format_number(result['interaction_term']['p_value'])}, {result['interaction_term']['sig']}).",
             result["interpretation"],
         ],
     )
     append_module(
-        "Module 2 - Matching",
+        "Panel B - Nearest-Neighbour Matching",
         m2_results,
         lambda result: [
             f"Matched pairs = {result['n_matched_pairs']} within overlap [{format_number(result['overlap_lo'], 2)}, {format_number(result['overlap_hi'], 2)}].",
@@ -1872,31 +1846,35 @@ def build_markdown_report(
             result["interpretation"],
         ],
     )
-    append_module(
-        "Module 3 - Latency",
-        m3_results,
-        lambda result: [
-            (
-                f"Arm-level all-message latency: EPS median {format_number(result['arm_level_latency_stats']['eps']['median'], 1)} min vs "
-                f"Human median {format_number(result['arm_level_latency_stats']['human']['median'], 1)} min; "
-                f"Mann-Whitney p={format_number(result['arm_level_latency_stats']['mann_whitney']['p'])}."
-            )
-            if result.get("arm_level_latency_stats")
-            else "Arm-level all-message latency summary unavailable."
-            ,
-            f"Indirect via count = {format_number(result['indirect_via_count']['point_estimate'])} with 95% CI [{format_number(result['indirect_via_count']['ci_low'])}, {format_number(result['indirect_via_count']['ci_high'])}] and significant={result['indirect_via_count']['significant']}.",
-            f"Indirect via latency = {format_number(result['indirect_via_latency']['point_estimate'])} with 95% CI [{format_number(result['indirect_via_latency']['ci_low'])}, {format_number(result['indirect_via_latency']['ci_high'])}] and significant={result['indirect_via_latency']['significant']}.",
-            result["interpretation"],
-        ],
+
+    lines.extend(["", "## Panel C - Message-Level Content Audit", ""])
+    lines.append(
+        f"Message-level coded segments: Human n={quality_comparison.get('human_n_messages', 0)}, EPS-human n={quality_comparison.get('eps_n_messages', 0)}."
     )
-    append_module(
-        "Module 4 - Quality",
-        m4_results,
-        lambda result: [
-            f"Indirect via count = {format_number(result['indirect_via_count']['point_estimate'])} with 95% CI [{format_number(result['indirect_via_count']['ci_low'])}, {format_number(result['indirect_via_count']['ci_high'])}] and significant={result['indirect_via_count']['significant']}.",
-            f"Indirect via quality = {format_number(result['indirect_via_quality']['point_estimate'])} with 95% CI [{format_number(result['indirect_via_quality']['ci_low'])}, {format_number(result['indirect_via_quality']['ci_high'])}] and significant={result['indirect_via_quality']['significant']}.",
-            result["interpretation"],
-        ],
+    lines.extend(["", "| Feature | Human | EPS-human | EPS-Human diff | 95% CI | p |", "|---------|-------|-----------|----------------|--------|---|"])
+    for item in quality_comparison.get("features", []):
+        lines.append(
+            f"| {item['label']} | {format_quality_value(item, item.get('human_value'))} | "
+            f"{format_quality_value(item, item.get('eps_value'))} | "
+            f"{format_quality_value(item, item.get('difference_eps_minus_human'))} | "
+            f"[{format_quality_value(item, item.get('ci_low'))}, {format_quality_value(item, item.get('ci_high'))}] | "
+            f"{format_number(item.get('p_value'))} {item.get('sig')} |"
+        )
+    lines.extend(["", quality_comparison.get("interpretation", ""), ""])
+
+    eps_latency = arm_latency_stats.get("eps", {})
+    human_latency = arm_latency_stats.get("human", {})
+    mw = arm_latency_stats.get("mann_whitney", {})
+    lines.extend(["## Panel D - Response Latency", ""])
+    lines.extend(["| Arm | n | Median latency [IQR], min | Mean latency, min |", "|-----|---|---------------------------|-------------------|"])
+    for item in (eps_latency, human_latency):
+        lines.append(
+            f"| {item.get('arm', 'NA')} | {item.get('n', 'NA')} | "
+            f"{format_number(item.get('median'), 1)} [{format_number(item.get('p25'), 1)}, {format_number(item.get('p75'), 1)}] | "
+            f"{format_number(item.get('mean'), 1)} |"
+        )
+    lines.append(
+        f"\nMann-Whitney U={format_number(mw.get('u'), 1)}, z={format_number(mw.get('z'))}, p={format_number(mw.get('p'))} {pstar(mw.get('p')) if mw.get('p') is not None else 'NA'}."
     )
 
     lines.extend(["## Descriptive Statistics", "", "| Feature | Human mean (SD) | EPS mean (SD) |", "|---------|-----------------|---------------|"])
@@ -1912,7 +1890,7 @@ def build_markdown_report(
 
 
 def derive_output_paths(outdir: Path, cohort: str) -> dict[str, Path]:
-    prefix = f"{cohort}_enhanced_feedback_mediation"
+    prefix = f"{cohort}_frequency_control_content_audit"
     return {
         "summary_json": outdir / f"{prefix}_summary.json",
         "report_md": outdir / f"{prefix}_report.md",
@@ -1924,8 +1902,8 @@ def derive_output_paths(outdir: Path, cohort: str) -> dict[str, Path]:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Run the enhanced checkin mediation workflow for Supplementary Table 3 "
-            "with interaction, matching, latency, and quality-index analyses."
+            "Run the checkin frequency-control/content-audit workflow for the updated "
+            "Supplementary Table 3 logic."
         )
     )
     parser.add_argument("--cohort", choices=sorted(COHORT_CONFIGS), required=True, help="Clinical-trial cohort.")
@@ -1940,17 +1918,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--eps-count-column", default=None, help="Optional override for the EPS-human-arm feedback count column.")
     parser.add_argument("--human-keyword", default=None, help="Optional override for the human-arm tagged feedback keyword.")
     parser.add_argument("--eps-keyword", default=None, help="Optional override for the EPS-human-arm tagged feedback keyword.")
-    parser.add_argument("--n-boot", type=int, default=DEFAULT_N_BOOT, help="Bootstrap draws per multi-mediator module.")
+    parser.add_argument("--n-boot", type=int, default=DEFAULT_N_BOOT, help="Deprecated compatibility argument; bootstrap mediation is not run.")
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED, help="Random seed.")
     return parser.parse_args()
-
-
-def strip_bootstrap_draws(obj: Any) -> Any:
-    if isinstance(obj, dict):
-        return {key: strip_bootstrap_draws(value) for key, value in obj.items() if not key.startswith("bootstrap_draws")}
-    if isinstance(obj, list):
-        return [strip_bootstrap_draws(value) for value in obj]
-    return obj
 
 
 def main() -> None:
@@ -1991,7 +1961,12 @@ def main() -> None:
     for row in eps_rows:
         row.update(eps_features.get(row["user"], {}))
 
-    all_rows = build_quality_index(human_rows + eps_rows)
+    all_rows = human_rows + eps_rows
+
+    log("Running message-level content audit...")
+    human_quality_messages = extract_arm_quality_messages(chat_path=args.human_chat_file, keyword=human_keyword, arm_label="Human")
+    eps_quality_messages = extract_arm_quality_messages(chat_path=args.eps_chat_file, keyword=eps_keyword, arm_label="EPS-human")
+    quality_comparison = run_keyword_quality_comparison(human_quality_messages, eps_quality_messages)
 
     log("Extracting arm-level latency distributions from all keyword messages...")
     human_all_latencies = extract_arm_latencies_all_messages(chat_path=args.human_chat_file, keyword=human_keyword, arm_label="Human")
@@ -2004,34 +1979,21 @@ def main() -> None:
 
     warnings = build_quality_warnings(diagnostics, all_rows)
 
-    log("Running Module 1 - Interaction...")
+    log("Running Panel A - Interaction...")
     m1_results = [run_interaction_model(all_rows, spec) for spec in config.outcome_specs]
 
-    log("Running Module 2 - Matching...")
+    log("Running Panel B - Matching...")
     m2_results = [run_matching_analysis(all_rows, spec) for spec in config.outcome_specs]
 
-    log("Running Module 3 - Latency mediation...")
-    m3_results = [
-        run_latency_mediation(all_rows, spec, n_boot=args.n_boot, seed=args.seed + 1000 + index * 17)
-        for index, spec in enumerate(config.outcome_specs)
-    ]
-    for result in m3_results:
-        if "error" not in result:
-            result["arm_level_latency_stats"] = arm_latency_stats
-
-    log("Running Module 4 - Quality-index mediation...")
-    m4_results = [
-        run_quality_mediation(all_rows, spec, n_boot=args.n_boot, seed=args.seed + 2000 + index * 17)
-        for index, spec in enumerate(config.outcome_specs)
-    ]
-
-    primary_quality_result = next(
-        (result for result in m4_results if result.get("outcome") == config.primary_plot_outcome and "error" not in result),
-        next((result for result in m4_results if "error" not in result), {}),
-    )
-
     log("Attempting plot generation...")
-    plot_status = maybe_build_plot(rows=all_rows, config=config, primary_quality_result=primary_quality_result, plot_path=output_paths["plot_png"])
+    plot_status = maybe_build_plot(
+        rows=all_rows,
+        config=config,
+        quality_comparison=quality_comparison,
+        human_latencies=human_all_latencies,
+        eps_latencies=eps_all_latencies,
+        plot_path=output_paths["plot_png"],
+    )
 
     desc = describe_features(all_rows)
 
@@ -2044,8 +2006,8 @@ def main() -> None:
         desc=desc,
         m1_results=m1_results,
         m2_results=m2_results,
-        m3_results=m3_results,
-        m4_results=m4_results,
+        quality_comparison=quality_comparison,
+        arm_latency_stats=arm_latency_stats,
         human_keyword=human_keyword,
         eps_keyword=eps_keyword,
         n_boot=args.n_boot,
@@ -2063,8 +2025,8 @@ def main() -> None:
             desc=desc,
             m1_results=m1_results,
             m2_results=m2_results,
-            m3_results=m3_results,
-            m4_results=m4_results,
+            quality_comparison=quality_comparison,
+            arm_latency_stats=arm_latency_stats,
             plot_status=plot_status,
         ),
         encoding="utf-8",
@@ -2073,10 +2035,10 @@ def main() -> None:
     log("Writing JSON summary...")
     summary = {
         "analysis_scope": {
-            "label": "enhanced mediation",
+            "label": "frequency-control and content-audit analysis",
             "cohort": args.cohort,
-            "description": "Four-module enhanced mediation workflow using actual feedback counts, response latency, and message-quality features reconstructed from chat exports.",
-            "bootstrap_iterations": args.n_boot,
+            "description": "Updated article workflow using feedback-count interaction models, nearest-neighbour matching, message-level content audit, and response-latency descriptives. The content audit is construct-validity evidence, not formal causal mediation.",
+            "deprecated_bootstrap_argument": args.n_boot,
             "random_seed": args.seed,
             "keywords": {"human": human_keyword, "eps": eps_keyword},
             "inputs": {
@@ -2091,10 +2053,10 @@ def main() -> None:
         "diagnostics": diagnostics,
         "warnings": warnings,
         "descriptive_statistics": desc,
-        "module_1_interaction": strip_bootstrap_draws(m1_results),
-        "module_2_matching": strip_bootstrap_draws(m2_results),
-        "module_3_latency": strip_bootstrap_draws(m3_results),
-        "module_4_quality": strip_bootstrap_draws(m4_results),
+        "panel_a_interaction": m1_results,
+        "panel_b_matching": m2_results,
+        "panel_c_content_audit": quality_comparison,
+        "panel_d_latency": arm_latency_stats,
         "plot_status": plot_status,
         "outputs": {key: str(value) for key, value in output_paths.items()},
     }
