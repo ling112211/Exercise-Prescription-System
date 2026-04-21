@@ -75,9 +75,14 @@ def parse_yes_no(x: object) -> float:
     if pd.isna(x):
         return np.nan
     s = str(x).strip()
-    m = re.match(r"^([AB])\s*[\.:\)\s]?", s)
+    m = re.match(r"^([ABab])\s*[\.\．、。:：\)\）\s]?", s)
     if m:
-        return 1.0 if m.group(1) == "A" else 0.0
+        return 1.0 if m.group(1).upper() == "A" else 0.0
+
+    if "是" in s and "否" not in s:
+        return 1.0
+    if "否" in s and "是" not in s:
+        return 0.0
 
     # Heuristic for common English yes/no tokens.
     sl = s.lower()
@@ -194,7 +199,7 @@ def holm_adjust(pvals: np.ndarray) -> np.ndarray:
 # QC helpers
 # =========================
 def try_find_id_col(df: pd.DataFrame) -> Optional[str]:
-    candidates = ["id", "ID", "Id", "participant_id", "user_id"]
+    candidates = ["id", "ID", "Id", "participant_id", "user_id", "编号"]
     for c in df.columns:
         if normalize_colname(c) in candidates:
             return c
@@ -332,19 +337,19 @@ def make_wide_table(sum_h: pd.DataFrame, sum_e: pd.DataFrame, pvals: np.ndarray)
 # Plotting
 # =========================
 DEFAULT_LABELS: Dict[int, str] = {
-    2:  "Satisfaction",
+    2:  "Overall satisfaction",
     3:  "Pleasant interaction",
     4:  "Happiness after feedback",
-    5:  "Calm & stable",
-    6:  "Steady under pressure",
+    5:  "Calm & emotionally stable",
+    6:  "Steady tone under pressure",
     7:  "Not easily triggered",
     8:  "Low emotional swings",
     9:  "Not anxious",
-    10: "Consistent tone",
+    10: "Tone consistency",
     11: "Often agrees",
     12: "Rarely disagrees",
     13: "Emphasizes agreement",
-    14: "Often praises",
+    14: "Frequent praise",
     15: "Highlights strengths",
 }
 
@@ -401,11 +406,21 @@ def radar_plot_with_ci(
     ax.set_yticks([1, 2, 3, 4, 5, 6, 7])
     ax.set_yticklabels([])
 
-    ax.yaxis.grid(True, linewidth=0.8, alpha=0.7)
-    ax.xaxis.grid(True, linewidth=0.8, alpha=0.7)
+    grid_color = "#c7c7c7"
+    ax.yaxis.grid(True, color=grid_color, linewidth=0.8, alpha=0.7)
+    ax.xaxis.grid(True, color=grid_color, linewidth=0.8, alpha=0.7)
 
     ax.set_xticks(angles)
     ax.set_xticklabels(cat_labels, fontfamily="Times New Roman")
+    ax.tick_params(axis="x", pad=12)
+    for tick_label, angle in zip(ax.get_xticklabels(), angles):
+        display_angle = (np.pi / 2 - angle + np.pi) % (2 * np.pi) - np.pi
+        if abs(abs(display_angle) - np.pi / 2) < 1e-9:
+            tick_label.set_horizontalalignment("center")
+        elif -np.pi / 2 < display_angle < np.pi / 2:
+            tick_label.set_horizontalalignment("left")
+        else:
+            tick_label.set_horizontalalignment("right")
 
     # Colors kept consistent with common publication defaults.
     col_h = "#1f77b4"
@@ -440,7 +455,11 @@ def radar_plot_with_ci(
     draw_errorbars(angles, e_lo, e_hi, col_e)
 
     handles, names = ax.get_legend_handles_labels()
-    ax.legend(handles, names, loc="upper right", bbox_to_anchor=(1.18, 1.10), frameon=False)
+    if len(handles) >= 2:
+        order = [1, 0]
+        handles = [handles[i] for i in order]
+        names = [names[i] for i in order]
+    ax.legend(handles, names, loc="upper right", bbox_to_anchor=(1.25, 1.10), frameon=False)
 
     fig.tight_layout()
     out_pdf.parent.mkdir(parents=True, exist_ok=True)
@@ -467,10 +486,13 @@ def parse_args() -> argparse.Namespace:
 
     p.add_argument("--time-filter", action="store_true", help="Enable completion-time QC if a time column is detected")
     p.add_argument("--no-time-filter", dest="time_filter", action="store_false")
-    p.set_defaults(time_filter=True)
+    p.set_defaults(time_filter=False)
     p.add_argument("--min-time-sec", type=float, default=60.0, help="Minimum completion time in seconds")
     p.add_argument("--max-time-sec", type=float, default=3600.0, help="Maximum completion time in seconds")
 
+    p.add_argument("--drop-straightliners", action="store_true", help="Drop rows with the same answer across Q2-Q15")
+    p.add_argument("--no-drop-straightliners", dest="drop_straightliners", action="store_false")
+    p.set_defaults(drop_straightliners=False)
     p.add_argument("--min-answered", type=int, default=8, help="Minimum answered items required to evaluate straight-lining")
     p.add_argument("--group-human", type=str, default="Human", help="Human group label for tables/plots")
     p.add_argument("--group-eps", type=str, default="EPS–human", help="EPS-human group label for tables/plots")
@@ -505,10 +527,8 @@ def main() -> None:
     id_e = try_find_id_col(df_e)
     if id_h is not None:
         df_h = df_h.dropna(subset=[id_h]).copy()
-        df_h = df_h.drop_duplicates(subset=[id_h], keep="first").copy()
     if id_e is not None:
         df_e = df_e.dropna(subset=[id_e]).copy()
-        df_e = df_e.drop_duplicates(subset=[id_e], keep="first").copy()
 
     # Identify question columns.
     q1_h = find_single_col(df_h, Q1_PATTERN)
@@ -539,9 +559,12 @@ def main() -> None:
             df_h, removed_time_h = apply_time_filter(df_h, tcol_h, args.min_time_sec, args.max_time_sec)
             df_e, removed_time_e = apply_time_filter(df_e, tcol_e, args.min_time_sec, args.max_time_sec)
 
-    # Straight-lining QC.
-    df_h, removed_sl_h = drop_straightliners(df_h, q_cols_h, min_answered=args.min_answered)
-    df_e, removed_sl_e = drop_straightliners(df_e, q_cols_e, min_answered=args.min_answered)
+    # Optional straight-lining QC. The manuscript plotting script did not apply
+    # this by default; keep it available for sensitivity checks.
+    removed_sl_h = removed_sl_e = 0
+    if args.drop_straightliners:
+        df_h, removed_sl_h = drop_straightliners(df_h, q_cols_h, min_answered=args.min_answered)
+        df_e, removed_sl_e = drop_straightliners(df_e, q_cols_e, min_answered=args.min_answered)
 
     # Summaries.
     sum_h = summarize_group(df_h, q_cols_h, args.group_human)
@@ -555,7 +578,7 @@ def main() -> None:
     outdir.mkdir(parents=True, exist_ok=True)
 
     out_wide_csv = outdir / f"{args.prefix}_radar_means_ci_with_p.csv"
-    out_long_csv = outdir / f"{args.prefix}_radar_means_ci_long.csv"
+    out_long_csv = outdir / f"{args.prefix}_radar_means_ci.csv"
     out_pdf = outdir / f"{args.prefix}_radar_mean_ci.pdf"
     out_png = outdir / f"{args.prefix}_radar_mean_ci.png"
 

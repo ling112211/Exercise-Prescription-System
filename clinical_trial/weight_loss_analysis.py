@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import re
 from pathlib import Path
 from typing import Optional, Sequence, Tuple
 
@@ -200,19 +201,72 @@ def rr_ci(x1: int, n1: int, x2: int, n2: int, cc: float = 0.5) -> Tuple[float, f
 
 def format_p(p: object) -> str:
     if p is None:
-        return r"$\it{P}$ = NA"
+        return r"$P$ = NA"
     if isinstance(p, str) and p.strip().startswith("<"):
         thr = p.strip()[1:]
-        return rf"$\it{{P}}$ < {thr}"
+        return rf"$P$ < {thr}"
     try:
         pv = float(p)
     except Exception:
-        return r"$\it{P}$ = NA"
+        return r"$P$ = NA"
     if np.isnan(pv):
-        return r"$\it{P}$ = NA"
-    if pv < 0.0001:
-        return r"$\it{P}$ < 0.0001"
-    return rf"$\it{{P}}$ = {pv:.4f}"
+        return r"$P$ = NA"
+    if pv < 0.001:
+        return r"$P$ < 0.001"
+    return rf"$P$ = {pv:.3f}"
+
+
+def scalar_to_float(value: object) -> float:
+    numeric = pd.to_numeric(pd.Series([value]), errors="coerce").iloc[0]
+    return float(numeric) if pd.notna(numeric) else np.nan
+
+
+def get_p_from_row(row: pd.Series) -> object:
+    for col in ["p_value", "P value", "P_value", "p", "pval", "p-value", "P-value"]:
+        if col not in row.index:
+            continue
+        value = row[col]
+        if pd.isna(value):
+            continue
+        text = str(value).strip()
+        compact = (
+            text.replace(" ", "")
+            .replace("P=", "")
+            .replace("p=", "")
+            .replace("P<", "<")
+            .replace("p<", "<")
+        )
+        if compact.startswith("<"):
+            match = re.search(r"<([0-9]*\.?[0-9]+)", compact)
+            return f"<{match.group(1)}" if match else "<0.001"
+        match = re.search(r"([0-9]*\.?[0-9]+)", compact)
+        if match:
+            return float(match.group(1))
+    return np.nan
+
+
+def read_results_table(path: Path) -> pd.DataFrame:
+    sheets = pd.read_excel(path, sheet_name=None)
+    df = sheets["Results"] if "Results" in sheets else next(iter(sheets.values()))
+    df.columns = df.columns.astype(str).str.strip()
+
+    metric_col = "Metric" if "Metric" in df.columns else "Characteristic"
+    if metric_col not in df.columns:
+        raise ValueError(f"Cannot find metric column in {path}. Columns={list(df.columns)}")
+    df[metric_col] = df[metric_col].astype(str).str.strip()
+    return df.rename(columns={metric_col: "Metric"})
+
+
+def get_result_row(df: pd.DataFrame, metric: str) -> pd.Series:
+    exact = df.loc[df["Metric"].str.strip() == metric]
+    if not exact.empty:
+        return exact.iloc[0]
+
+    fuzzy = df.loc[df["Metric"].str.contains(re.escape(metric), case=False, na=False)]
+    if not fuzzy.empty:
+        return fuzzy.iloc[0]
+
+    raise ValueError(f"Cannot find metric: {metric}")
 
 
 def asym_yerr_from_ci(means: Sequence[float], lows: Sequence[float], highs: Sequence[float]) -> Tuple[np.ndarray, list, list]:
@@ -260,6 +314,21 @@ def set_ylim_with_headroom(
         ax.set_ylim(lo, hi)
 
 
+def set_limits(ax: plt.Axes, lows: Sequence[float], highs: Sequence[float]) -> Tuple[float, float]:
+    finite_lows = [float(v) for v in lows if np.isfinite(v)]
+    finite_highs = [float(v) for v in highs if np.isfinite(v)]
+    if not finite_lows or not finite_highs:
+        return ax.get_ylim()
+
+    lo = min(0.0, min(finite_lows))
+    hi = max(finite_highs)
+    span = max(hi - lo, abs(hi), 1.0)
+    lower = lo - 0.04 * span
+    upper = hi + 0.38 * span
+    ax.set_ylim(lower, upper)
+    return lower, upper
+
+
 def apply_plot_style() -> None:
     mpl.rcParams.update(
         {
@@ -270,11 +339,8 @@ def apply_plot_style() -> None:
             "mathtext.bf": "Times New Roman:bold",
             "pdf.fonttype": 42,
             "ps.fonttype": 42,
-            "axes.titlesize": 13,
-            "axes.labelsize": 11.5,
-            "xtick.labelsize": 11,
-            "ytick.labelsize": 11,
-            "axes.linewidth": 1.1,
+            "axes.linewidth": 0.85,
+            "axes.unicode_minus": False,
         }
     )
 
@@ -282,12 +348,33 @@ def apply_plot_style() -> None:
 def style_axis(ax: plt.Axes) -> None:
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
-    ax.spines["left"].set_linewidth(1.1)
-    ax.spines["bottom"].set_linewidth(1.1)
-    ax.tick_params(direction="out", length=3.5, width=1.0)
+    ax.spines["left"].set_linewidth(0.85)
+    ax.spines["bottom"].set_linewidth(0.85)
+    ax.tick_params(axis="both", labelsize=7.5, width=0.8, length=3, pad=2)
     ax.yaxis.set_major_locator(MaxNLocator(nbins=5))
-    ax.grid(axis="y", linewidth=0.6, alpha=0.22)
+    ax.yaxis.grid(True, color="#D7DEE3", linewidth=0.55, alpha=0.8)
     ax.set_axisbelow(True)
+
+
+def add_p_bracket(ax: plt.Axes, p_label: str, y: float, h: float) -> None:
+    x0, x1 = 0, 1
+    ax.plot([x0, x0, x1, x1], [y, y + h, y + h, y], color="#252525", lw=0.75)
+    ax.text(
+        0.5,
+        y + h * 1.45,
+        p_label,
+        ha="center",
+        va="bottom",
+        fontsize=7.5,
+        color="#252525",
+    )
+
+
+def format_arm_tick(label: str, n: object) -> str:
+    n_float = scalar_to_float(n)
+    if np.isfinite(n_float):
+        return f"{label}\nn={int(n_float)}"
+    return label
 
 
 def plot_weight_loss_bars(
@@ -313,22 +400,27 @@ def plot_weight_loss_bars(
     p_wkg: float,
     p_wpct: float,
     p_ge2: float,
+    human_n: object = np.nan,
+    eps_n: object = np.nan,
 ) -> None:
     apply_plot_style()
 
-    color_eps = "#6CBAD8"
-    color_human = "#BAD2E1"
-    err_color = "black"
-
-    bar_width = 0.72
-    capsize = 4
-    eline = 1.3
-    capthick = 1.3
-
+    arm_order = ("Human", "EPS-human")
+    arm_colors = {
+        "Human": "#AAB7C0",
+        "EPS-human": "#0072B2",
+    }
+    arm_edges = {
+        "Human": "#6E7C86",
+        "EPS-human": "#004C79",
+    }
     x = np.arange(2)
-    xticklabels = ["Human", "EPS–human"]
+    xticklabels = [
+        format_arm_tick("Human", human_n),
+        format_arm_tick("EPS-human", eps_n),
+    ]
 
-    fig, axes = plt.subplots(1, 3, figsize=(10.4, 3.15), dpi=300)
+    fig, axes = plt.subplots(1, 3, figsize=(7.25, 2.35), dpi=400)
     fig.patch.set_facecolor("white")
 
     for ax in axes:
@@ -342,26 +434,40 @@ def plot_weight_loss_bars(
         title: str,
         ylabel: str,
         pval: float,
-        force_zero: bool = True,
     ) -> None:
-        yerr, low_err, high_err = asym_yerr_from_ci(means, lows, highs)
+        yerr, _, _ = asym_yerr_from_ci(means, lows, highs)
         ax.bar(
             x,
             means,
-            width=bar_width,
-            color=[color_human, color_eps],
-            edgecolor="none",
-            yerr=yerr,
-            capsize=capsize,
-            error_kw={"ecolor": err_color, "elinewidth": eline, "capthick": capthick},
+            width=0.58,
+            color=[arm_colors[a] for a in arm_order],
+            edgecolor=[arm_edges[a] for a in arm_order],
+            linewidth=0.65,
+            alpha=0.86,
             zorder=3,
         )
+        ax.errorbar(
+            x,
+            means,
+            yerr=yerr,
+            fmt="none",
+            ecolor="#1F1F1F",
+            elinewidth=0.9,
+            capsize=2.8,
+            capthick=0.9,
+            zorder=4,
+        )
+
+        lower, upper = set_limits(ax, lows, highs)
+        span = upper - lower
+        bracket_y = max(float(v) for v in highs if np.isfinite(v)) + 0.14 * span
+        bracket_h = 0.025 * span
+        add_p_bracket(ax, format_p(pval), bracket_y, bracket_h)
+
+        ax.set_title(title, loc="center", fontsize=8.7, fontweight="normal", pad=7)
+        ax.set_ylabel(ylabel, fontsize=7.8)
         ax.set_xticks(x, xticklabels)
-        ax.set_title(title, pad=8)
-        ax.set_ylabel(ylabel)
-        set_ylim_with_headroom(ax, means, low_err, high_err, force_zero=force_zero)
-        ax.margins(x=0.10)
-        ax.text(0.5, 0.95, format_p(pval), transform=ax.transAxes, ha="center", va="top")
+        ax.set_xlim(-0.55, 1.55)
 
     draw_panel(
         axes[0],
@@ -371,7 +477,6 @@ def plot_weight_loss_bars(
         title="Weight loss",
         ylabel="Mean (95% CI), kg",
         pval=p_wkg,
-        force_zero=True,
     )
 
     draw_panel(
@@ -382,7 +487,6 @@ def plot_weight_loss_bars(
         title="Weight loss ratio",
         ylabel="Mean (95% CI), %",
         pval=p_wpct,
-        force_zero=True,
     )
 
     draw_panel(
@@ -390,26 +494,73 @@ def plot_weight_loss_bars(
         means=[human_pct_ge2, eps_pct_ge2],
         lows=[human_low_ge2, eps_low_ge2],
         highs=[human_high_ge2, eps_high_ge2],
-        title="≥2% weight loss",
-        ylabel="Proportion (95% CI), %",
+        title=r"$\geq$2% weight loss",
+        ylabel="Participants (95% CI), %",
         pval=p_ge2,
-        force_zero=True,
     )
 
-    fig.tight_layout(w_pad=2.2)
+    fig.subplots_adjust(left=0.07, right=0.995, bottom=0.22, top=0.91, wspace=0.46)
 
-    out_png = out_dir / "weight_loss_bars.png"
-    out_pdf = out_dir / "weight_loss_bars.pdf"
-    ensure_parent_dir(out_png)
-    fig.savefig(out_png, bbox_inches="tight")
-    fig.savefig(out_pdf, bbox_inches="tight")
+    out_paths = [
+        out_dir / "weight_loss_bars.png",
+        out_dir / "weight_loss_bars.pdf",
+        out_dir / "weight_loss_bars_nm_style.png",
+        out_dir / "weight_loss_bars_nm_style.pdf",
+    ]
+    ensure_parent_dir(out_paths[0])
+    for path in out_paths:
+        if path.suffix.lower() == ".png":
+            fig.savefig(path, bbox_inches="tight", dpi=600)
+        else:
+            fig.savefig(path, bbox_inches="tight")
     plt.close(fig)
+
+
+def plot_weight_loss_bars_from_results(out_dir: Path, results: pd.DataFrame) -> None:
+    row_wkg = get_result_row(results, "Weight change (kg)")
+    row_wpct = get_result_row(results, "Percent weight change (%)")
+    row_ge2 = get_result_row(results, "At least 2% weight loss")
+
+    plot_weight_loss_bars(
+        out_dir=out_dir,
+        human_mean_wkg=scalar_to_float(row_wkg.get("Human_Mean", np.nan)),
+        human_low_wkg=scalar_to_float(row_wkg.get("Human_Mean_CI_low", np.nan)),
+        human_high_wkg=scalar_to_float(row_wkg.get("Human_Mean_CI_high", np.nan)),
+        eps_mean_wkg=scalar_to_float(row_wkg.get("EPS_Mean", np.nan)),
+        eps_low_wkg=scalar_to_float(row_wkg.get("EPS_Mean_CI_low", np.nan)),
+        eps_high_wkg=scalar_to_float(row_wkg.get("EPS_Mean_CI_high", np.nan)),
+        human_mean_wpct=scalar_to_float(row_wpct.get("Human_Mean", np.nan)),
+        human_low_wpct=scalar_to_float(row_wpct.get("Human_Mean_CI_low", np.nan)),
+        human_high_wpct=scalar_to_float(row_wpct.get("Human_Mean_CI_high", np.nan)),
+        eps_mean_wpct=scalar_to_float(row_wpct.get("EPS_Mean", np.nan)),
+        eps_low_wpct=scalar_to_float(row_wpct.get("EPS_Mean_CI_low", np.nan)),
+        eps_high_wpct=scalar_to_float(row_wpct.get("EPS_Mean_CI_high", np.nan)),
+        human_pct_ge2=scalar_to_float(row_ge2.get("Human_%", np.nan)),
+        human_low_ge2=scalar_to_float(row_ge2.get("Human_%_CI_low", np.nan)),
+        human_high_ge2=scalar_to_float(row_ge2.get("Human_%_CI_high", np.nan)),
+        eps_pct_ge2=scalar_to_float(row_ge2.get("EPS_%", np.nan)),
+        eps_low_ge2=scalar_to_float(row_ge2.get("EPS_%_CI_low", np.nan)),
+        eps_high_ge2=scalar_to_float(row_ge2.get("EPS_%_CI_high", np.nan)),
+        p_wkg=get_p_from_row(row_wkg),
+        p_wpct=get_p_from_row(row_wpct),
+        p_ge2=get_p_from_row(row_ge2),
+        human_n=row_wkg.get("Human_N", row_ge2.get("Human_N", np.nan)),
+        eps_n=row_wkg.get("EPS_N", row_ge2.get("EPS_N", np.nan)),
+    )
 
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Weight-loss outcomes (Fig. 3a).")
     p.add_argument("--weight_human", type=str, default=None, help="Path to Human weight-loss Excel.")
     p.add_argument("--weight_eps", type=str, default=None, help="Path to EPS-human weight-loss Excel.")
+    p.add_argument(
+        "--summary-xlsx",
+        "--summary_xlsx",
+        dest="summary_xlsx",
+        type=str,
+        default=None,
+        help="Optional final summary workbook with a Results sheet, matching the manuscript plotting workflow.",
+    )
     p.add_argument("--out_dir", type=str, default="outputs/clinical_trial", help="Output directory.")
     return p.parse_args()
 
@@ -418,8 +569,13 @@ def main() -> None:
     args = parse_args()
     out_dir = Path(args.out_dir)
 
+    if args.summary_xlsx is not None:
+        results = read_results_table(Path(args.summary_xlsx))
+        plot_weight_loss_bars_from_results(out_dir, results)
+        return
+
     if args.weight_human is None or args.weight_eps is None:
-        raise SystemExit("Missing input paths. Provide --weight_human and --weight_eps.")
+        raise SystemExit("Missing input paths. Provide --weight_human and --weight_eps, or use --summary-xlsx.")
 
     df_h = read_excel(Path(args.weight_human))
     df_e = read_excel(Path(args.weight_eps))
@@ -508,6 +664,7 @@ def main() -> None:
                 "MeanDiff_CI_low": diff_kg_lo,
                 "MeanDiff_CI_high": diff_kg_hi,
                 "P_value": p_kg,
+                "p_value": p_kg,
             },
             {
                 "Metric": "Percent weight change (%)",
@@ -525,6 +682,7 @@ def main() -> None:
                 "MeanDiff_CI_low": diff_pct_lo,
                 "MeanDiff_CI_high": diff_pct_hi,
                 "P_value": p_pct,
+                "p_value": p_pct,
             },
             {
                 "Metric": "At least 2% weight loss",
@@ -543,6 +701,7 @@ def main() -> None:
                 "RR_CI_low": rr_lo,
                 "RR_CI_high": rr_hi,
                 "P_value": p_ge2,
+                "p_value": p_ge2,
             },
         ]
     )
@@ -576,6 +735,8 @@ def main() -> None:
         p_wkg=p_kg,
         p_wpct=p_pct,
         p_ge2=p_ge2,
+        human_n=n_h_kg,
+        eps_n=n_e_kg,
     )
 
 

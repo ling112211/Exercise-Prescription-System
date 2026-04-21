@@ -214,6 +214,16 @@ python clinical_trial/weight_loss_analysis.py \
     --out_dir      outputs/clinical_trial
 ```
 
+If you already have the final `Results` workbook used for manuscript plotting, you can generate the publication-style figure directly:
+
+```bash
+python clinical_trial/weight_loss_analysis.py \
+    --summary-xlsx path/to/EPS_vs_Human_weightloss_effects.xlsx \
+    --out_dir      outputs/clinical_trial
+```
+
+The script writes both the manuscript filenames (`weight_loss_bars.pdf/.png`) and `_nm_style` aliases.
+
 ### Glycemic-Control Outcomes (Fig. 3b)
 
 Computes fasting glucose reduction statistics and generates the two-panel bar chart.
@@ -227,9 +237,19 @@ python clinical_trial/glycemic_control_analysis.py \
     --out_dir   outputs/clinical_trial
 ```
 
+If you already have the final `Results` workbook used for manuscript plotting, you can generate the publication-style figure directly:
+
+```bash
+python clinical_trial/glycemic_control_analysis.py \
+    --summary-xlsx path/to/glycemic_control_summary_table_with_CI.xlsx \
+    --out_dir      outputs/clinical_trial
+```
+
+The script writes both the manuscript filenames (`glycemic_fpg_reduction_bars.pdf/.png`) and `_nm_style` aliases.
+
 ### Participant-Reported Outcomes (Fig. 4)
 
-Applies quality-control filters (Q1 screening, completion-time filter, straight-lining detection) and generates the radar chart with 95% confidence intervals.
+Applies the Q1 screening filter by default and generates the radar chart with 95% confidence intervals. Optional completion-time and straight-lining filters are available with `--time-filter` and `--drop-straightliners` for sensitivity checks.
 
 > **Note**: The commands below use the example data provided in `data/example/`. The outputs will **not** match Fig. 4 in the paper. Replace the paths with your real data files once access has been granted.
 

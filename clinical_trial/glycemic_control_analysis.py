@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import re
 from pathlib import Path
 from typing import Optional, Sequence, Tuple
 
@@ -108,19 +109,92 @@ def welch_mean_diff_ci(x_eps: pd.Series, x_hum: pd.Series) -> Tuple[float, float
 
 def format_p(p: object) -> str:
     if p is None:
-        return r"$\it{P}$ = NA"
+        return r"$P$ = NA"
     if isinstance(p, str) and p.strip().startswith("<"):
         thr = p.strip()[1:]
-        return rf"$\it{{P}}$ < {thr}"
+        return rf"$P$ < {thr}"
     try:
         pv = float(p)
     except Exception:
-        return r"$\it{P}$ = NA"
+        return r"$P$ = NA"
     if np.isnan(pv):
-        return r"$\it{P}$ = NA"
-    if pv < 0.0001:
-        return r"$\it{P}$ < 0.0001"
-    return rf"$\it{{P}}$ = {pv:.4f}"
+        return r"$P$ = NA"
+    if pv < 0.001:
+        return r"$P$ < 0.001"
+    return rf"$P$ = {pv:.3f}"
+
+
+def scalar_to_float(value: object) -> float:
+    numeric = pd.to_numeric(pd.Series([value]), errors="coerce").iloc[0]
+    return float(numeric) if pd.notna(numeric) else np.nan
+
+
+def read_results_table(path: Path) -> pd.DataFrame:
+    sheets = pd.read_excel(path, sheet_name=None)
+    df = sheets["Results"] if "Results" in sheets else next(iter(sheets.values()))
+    df.columns = df.columns.astype(str).str.strip()
+
+    metric_col = "Characteristic" if "Characteristic" in df.columns else "Metric"
+    if metric_col not in df.columns:
+        raise ValueError(f"Cannot find metric column in {path}. Columns={list(df.columns)}")
+    df[metric_col] = df[metric_col].astype(str).str.strip()
+    return df.rename(columns={metric_col: "Metric"})
+
+
+def get_result_row(df: pd.DataFrame, metric: str) -> pd.Series:
+    exact = df.loc[df["Metric"].str.strip() == metric]
+    if not exact.empty:
+        return exact.iloc[0]
+
+    fuzzy = df.loc[df["Metric"].str.contains(re.escape(metric), case=False, na=False)]
+    if not fuzzy.empty:
+        return fuzzy.iloc[0]
+
+    raise ValueError(f"Cannot find metric: {metric}")
+
+
+def get_p_from_row(row: pd.Series) -> object:
+    for col in ["P value", "P_value", "p_value", "p-value", "pval", "p", "P"]:
+        if col not in row.index:
+            continue
+        value = row[col]
+        if pd.isna(value):
+            continue
+        text = str(value).strip()
+        compact = (
+            text.replace(" ", "")
+            .replace("P=", "")
+            .replace("p=", "")
+            .replace("P<", "<")
+            .replace("p<", "<")
+        )
+        if compact.startswith("<"):
+            match = re.search(r"<([0-9]*\.?[0-9]+)", compact)
+            return f"<{match.group(1)}" if match else "<0.001"
+        match = re.search(r"([0-9]*\.?[0-9]+)", compact)
+        if match:
+            return float(match.group(1))
+    return np.nan
+
+
+def parse_mean_ci(cell: object) -> Tuple[float, float, float]:
+    if pd.isna(cell):
+        return np.nan, np.nan, np.nan
+
+    text = str(cell).strip().replace("−", "-")
+    match = re.search(
+        r"^\s*([+-]?\d*\.?\d+)\s*\(\s*([+-]?\d*\.?\d+)\s*,\s*([+-]?\d*\.?\d+)\s*\)\s*$",
+        text,
+    )
+    if match:
+        return tuple(float(match.group(i)) for i in (1, 2, 3))
+
+    number = re.search(r"([+-]?\d*\.?\d+)", text)
+    if number:
+        mean = float(number.group(1))
+        return mean, mean, mean
+
+    return np.nan, np.nan, np.nan
 
 
 def apply_plot_style() -> None:
@@ -133,6 +207,8 @@ def apply_plot_style() -> None:
             "mathtext.bf": "Times New Roman:bold",
             "pdf.fonttype": 42,
             "ps.fonttype": 42,
+            "axes.linewidth": 0.85,
+            "axes.unicode_minus": False,
         }
     )
 
@@ -140,21 +216,54 @@ def apply_plot_style() -> None:
 def style_axis(ax: plt.Axes) -> None:
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
-    ax.spines["left"].set_linewidth(1.1)
-    ax.spines["bottom"].set_linewidth(1.1)
-    ax.tick_params(axis="both", direction="out", length=4, width=1.0, labelsize=12)
-    ax.set_axisbelow(True)
-    ax.yaxis.grid(True, linewidth=0.6, alpha=0.25)
+    ax.spines["left"].set_linewidth(0.85)
+    ax.spines["bottom"].set_linewidth(0.85)
+    ax.tick_params(axis="both", labelsize=7.8, width=0.8, length=3, pad=2)
     ax.yaxis.set_major_locator(MaxNLocator(nbins=5))
+    ax.yaxis.grid(True, color="#D7DEE3", linewidth=0.55, alpha=0.8)
+    ax.set_axisbelow(True)
 
 
-def set_ylim_with_headroom(ax: plt.Axes, lows: Sequence[float], highs: Sequence[float], top_pad_frac: float = 0.18, bottom_pad_frac: float = 0.12) -> None:
-    lo = np.nanmin(np.array(lows, dtype=float))
-    hi = np.nanmax(np.array(highs, dtype=float))
-    if not (np.isfinite(lo) and np.isfinite(hi)) or lo == hi:
-        return
-    rng = hi - lo
-    ax.set_ylim(lo - rng * bottom_pad_frac, hi + rng * top_pad_frac)
+def set_limits(ax: plt.Axes, lows: Sequence[float], highs: Sequence[float]) -> Tuple[float, float]:
+    finite_lows = [float(v) for v in lows if np.isfinite(v)]
+    finite_highs = [float(v) for v in highs if np.isfinite(v)]
+    if not finite_lows or not finite_highs:
+        return ax.get_ylim()
+
+    lo = min(0.0, min(finite_lows))
+    hi = max(finite_highs)
+    span = max(hi - lo, abs(hi), 1.0)
+    lower = lo - 0.08 * span
+    upper = hi + 0.38 * span
+    ax.set_ylim(lower, upper)
+    return lower, upper
+
+
+def asym_yerr(means: Sequence[float], lows: Sequence[float], highs: Sequence[float]) -> np.ndarray:
+    low_err = [max(0.0, mean - low) for mean, low in zip(means, lows)]
+    high_err = [max(0.0, high - mean) for mean, high in zip(means, highs)]
+    return np.asarray([low_err, high_err])
+
+
+def add_p_bracket(ax: plt.Axes, p_label: str, y: float, h: float) -> None:
+    x0, x1 = 0, 1
+    ax.plot([x0, x0, x1, x1], [y, y + h, y + h, y], color="#252525", lw=0.75)
+    ax.text(
+        0.5,
+        y + h * 1.45,
+        p_label,
+        ha="center",
+        va="bottom",
+        fontsize=7.8,
+        color="#252525",
+    )
+
+
+def format_arm_tick(label: str, n: object) -> str:
+    n_float = scalar_to_float(n)
+    if np.isfinite(n_float):
+        return f"{label}\nn={int(n_float)}"
+    return label
 
 
 def plot_glycemic_bars(
@@ -173,86 +282,186 @@ def plot_glycemic_bars(
     eps_high_pct: float,
     p_red: float,
     p_pct: float,
+    human_n: object = np.nan,
+    eps_n: object = np.nan,
 ) -> None:
     apply_plot_style()
 
-    col_eps = "#6CBAD8"
-    col_hum = "#BAD2E1"
+    arm_order = ("Human", "EPS-human")
+    arm_colors = {
+        "Human": "#AAB7C0",
+        "EPS-human": "#0072B2",
+    }
+    arm_edges = {
+        "Human": "#6E7C86",
+        "EPS-human": "#004C79",
+    }
+    xticklabels = [
+        format_arm_tick("Human", human_n),
+        format_arm_tick("EPS-human", eps_n),
+    ]
+    x = np.arange(len(arm_order))
 
-    groups = ["Human", "EPS-human"]
-    xticklabels = ["Human", "EPS–human"]
-    x = np.arange(len(groups))
-    bar_width = 0.62
-
-    fig, axes = plt.subplots(1, 2, figsize=(7.4, 3.2), dpi=300)
+    fig, axes = plt.subplots(1, 2, figsize=(5.25, 2.65), dpi=400)
+    fig.patch.set_facecolor("white")
 
     for ax in axes:
         style_axis(ax)
 
-    # Panel 1
-    m1 = [human_mean_red, eps_mean_red]
-    lo1 = [human_low_red, eps_low_red]
-    hi1 = [human_high_red, eps_high_red]
-    yerr1 = np.vstack([np.array(m1) - np.array(lo1), np.array(hi1) - np.array(m1)])
+    def draw_panel(
+        ax: plt.Axes,
+        means: Sequence[float],
+        lows: Sequence[float],
+        highs: Sequence[float],
+        title: str,
+        ylabel: str,
+        pval: object,
+    ) -> None:
+        ax.bar(
+            x,
+            means,
+            width=0.58,
+            color=[arm_colors[a] for a in arm_order],
+            edgecolor=[arm_edges[a] for a in arm_order],
+            linewidth=0.65,
+            alpha=0.70,
+            zorder=2,
+        )
+        ax.errorbar(
+            x,
+            means,
+            yerr=asym_yerr(means, lows, highs),
+            fmt="o",
+            markersize=3.4,
+            markerfacecolor="#FFFFFF",
+            markeredgecolor="#1F1F1F",
+            ecolor="#1F1F1F",
+            elinewidth=0.95,
+            capsize=3,
+            capthick=0.95,
+            zorder=4,
+        )
 
-    axes[0].bar(
-        x,
-        m1,
-        width=bar_width,
-        color=[col_hum, col_eps],
-        edgecolor="none",
-        linewidth=0,
-        yerr=yerr1,
-        capsize=4,
-        error_kw=dict(ecolor="black", elinewidth=1.4, capthick=1.4),
-        zorder=3,
+        lower, upper = set_limits(ax, lows, highs)
+        span = upper - lower
+        ax.axhline(0, color="#4B4B4B", linewidth=0.75, zorder=1)
+
+        bracket_y = max(float(v) for v in highs if np.isfinite(v)) + 0.15 * span
+        bracket_h = 0.025 * span
+        add_p_bracket(ax, format_p(pval), bracket_y, bracket_h)
+
+        ax.set_title(title, loc="center", fontsize=9.0, fontweight="normal", pad=7)
+        ax.set_ylabel(ylabel, fontsize=8.0)
+        ax.set_xticks(x, xticklabels)
+        ax.set_xlim(-0.55, 1.55)
+
+    draw_panel(
+        axes[0],
+        means=[human_mean_red, eps_mean_red],
+        lows=[human_low_red, eps_low_red],
+        highs=[human_high_red, eps_high_red],
+        title="Fasting glucose reduction",
+        ylabel="Mean (95% CI), mmol/L",
+        pval=p_red,
     )
-    axes[0].set_xticks(x, xticklabels)
-    axes[0].set_title("Fasting glucose reduction", fontsize=16, pad=10)
-    axes[0].set_ylabel("Mean (95% CI), mmol/L", fontsize=14)
-    axes[0].set_xlim(-0.55, 1.55)
-    set_ylim_with_headroom(axes[0], lo1, hi1)
-    axes[0].text(0.5, 0.93, format_p(p_red), transform=axes[0].transAxes, ha="center", va="top", fontsize=12)
-
-    # Panel 2
-    m2 = [human_mean_pct, eps_mean_pct]
-    lo2 = [human_low_pct, eps_low_pct]
-    hi2 = [human_high_pct, eps_high_pct]
-    yerr2 = np.vstack([np.array(m2) - np.array(lo2), np.array(hi2) - np.array(m2)])
-
-    axes[1].bar(
-        x,
-        m2,
-        width=bar_width,
-        color=[col_hum, col_eps],
-        edgecolor="none",
-        linewidth=0,
-        yerr=yerr2,
-        capsize=4,
-        error_kw=dict(ecolor="black", elinewidth=1.4, capthick=1.4),
-        zorder=3,
+    draw_panel(
+        axes[1],
+        means=[human_mean_pct, eps_mean_pct],
+        lows=[human_low_pct, eps_low_pct],
+        highs=[human_high_pct, eps_high_pct],
+        title="Fasting glucose reduction ratio",
+        ylabel="Mean (95% CI), %",
+        pval=p_pct,
     )
-    axes[1].set_xticks(x, xticklabels)
-    axes[1].set_title("Fasting glucose reduction ratio", fontsize=16, pad=10)
-    axes[1].set_ylabel("Mean (95% CI), %", fontsize=14)
-    axes[1].set_xlim(-0.55, 1.55)
-    set_ylim_with_headroom(axes[1], lo2, hi2)
-    axes[1].text(0.5, 0.93, format_p(p_pct), transform=axes[1].transAxes, ha="center", va="top", fontsize=12)
 
-    fig.tight_layout()
+    fig.subplots_adjust(left=0.10, right=0.995, bottom=0.20, top=0.91, wspace=0.48)
 
-    out_png = out_dir / "glycemic_fpg_reduction_bars.png"
-    out_pdf = out_dir / "glycemic_fpg_reduction_bars.pdf"
-    ensure_parent_dir(out_png)
-    fig.savefig(out_png, bbox_inches="tight")
-    fig.savefig(out_pdf, bbox_inches="tight")
+    out_paths = [
+        out_dir / "glycemic_fpg_reduction_bars.png",
+        out_dir / "glycemic_fpg_reduction_bars.pdf",
+        out_dir / "glycemic_fpg_reduction_bars_nm_style.png",
+        out_dir / "glycemic_fpg_reduction_bars_nm_style.pdf",
+    ]
+    ensure_parent_dir(out_paths[0])
+    for path in out_paths:
+        if path.suffix.lower() == ".png":
+            fig.savefig(path, bbox_inches="tight", dpi=600)
+        else:
+            fig.savefig(path, bbox_inches="tight")
     plt.close(fig)
+
+
+def parse_participant_n(row: pd.Series, arm_col: str) -> float:
+    value = row.get(arm_col, np.nan)
+    if pd.isna(value):
+        return np.nan
+    match = re.search(r"(\d+)", str(value))
+    return float(match.group(1)) if match else scalar_to_float(value)
+
+
+def arm_mean_ci(row: pd.Series, arm: str) -> Tuple[float, float, float]:
+    if arm in row.index:
+        return parse_mean_ci(row[arm])
+
+    prefix = "Human" if arm == "Human" else "EPS"
+    return (
+        scalar_to_float(row.get(f"{prefix}_Mean", np.nan)),
+        scalar_to_float(row.get(f"{prefix}_Mean_CI_low", np.nan)),
+        scalar_to_float(row.get(f"{prefix}_Mean_CI_high", np.nan)),
+    )
+
+
+def plot_glycemic_bars_from_results(out_dir: Path, results: pd.DataFrame) -> None:
+    row_red = get_result_row(results, "Fasting glucose reduction")
+    row_pct = get_result_row(results, "Fasting glucose reduction ratio (%)")
+
+    n_h = row_red.get("Human_N", np.nan)
+    n_e = row_red.get("EPS_N", np.nan)
+    try:
+        row_n = get_result_row(results, "No. of participants")
+        n_h = parse_participant_n(row_n, "Human")
+        n_e = parse_participant_n(row_n, "EPS-human")
+    except ValueError:
+        pass
+
+    human_red = arm_mean_ci(row_red, "Human")
+    eps_red = arm_mean_ci(row_red, "EPS-human")
+    human_pct = arm_mean_ci(row_pct, "Human")
+    eps_pct = arm_mean_ci(row_pct, "EPS-human")
+
+    plot_glycemic_bars(
+        out_dir=out_dir,
+        human_mean_red=human_red[0],
+        human_low_red=human_red[1],
+        human_high_red=human_red[2],
+        eps_mean_red=eps_red[0],
+        eps_low_red=eps_red[1],
+        eps_high_red=eps_red[2],
+        human_mean_pct=human_pct[0],
+        human_low_pct=human_pct[1],
+        human_high_pct=human_pct[2],
+        eps_mean_pct=eps_pct[0],
+        eps_low_pct=eps_pct[1],
+        eps_high_pct=eps_pct[2],
+        p_red=get_p_from_row(row_red),
+        p_pct=get_p_from_row(row_pct),
+        human_n=n_h,
+        eps_n=n_e,
+    )
 
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Fasting glucose outcomes (Fig. 3b).")
     p.add_argument("--gly_human", type=str, default=None, help="Path to Human glycemic-control Excel.")
     p.add_argument("--gly_eps", type=str, default=None, help="Path to EPS-human glycemic-control Excel.")
+    p.add_argument(
+        "--summary-xlsx",
+        "--summary_xlsx",
+        dest="summary_xlsx",
+        type=str,
+        default=None,
+        help="Optional final summary workbook with a Results sheet, matching the manuscript plotting workflow.",
+    )
     p.add_argument("--out_dir", type=str, default="outputs/clinical_trial", help="Output directory.")
     return p.parse_args()
 
@@ -261,8 +470,13 @@ def main() -> None:
     args = parse_args()
     out_dir = Path(args.out_dir)
 
+    if args.summary_xlsx is not None:
+        results = read_results_table(Path(args.summary_xlsx))
+        plot_glycemic_bars_from_results(out_dir, results)
+        return
+
     if args.gly_human is None or args.gly_eps is None:
-        raise SystemExit("Missing input paths. Provide --gly_human and --gly_eps.")
+        raise SystemExit("Missing input paths. Provide --gly_human and --gly_eps, or use --summary-xlsx.")
 
     df_h = read_excel(Path(args.gly_human))
     df_e = read_excel(Path(args.gly_eps))
@@ -328,6 +542,7 @@ def main() -> None:
                 "MeanDiff_CI_low": diff_red_lo,
                 "MeanDiff_CI_high": diff_red_hi,
                 "P_value": p_red,
+                "p_value": p_red,
             },
             {
                 "Metric": "Fasting glucose reduction ratio (%)",
@@ -345,6 +560,7 @@ def main() -> None:
                 "MeanDiff_CI_low": diff_pct_lo,
                 "MeanDiff_CI_high": diff_pct_hi,
                 "P_value": p_pct,
+                "p_value": p_pct,
             },
         ]
     )
@@ -371,6 +587,8 @@ def main() -> None:
         eps_high_pct=hi_e_pct,
         p_red=p_red,
         p_pct=p_pct,
+        human_n=n_h_red,
+        eps_n=n_e_red,
     )
 
 
